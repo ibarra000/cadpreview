@@ -46,6 +46,8 @@ using Context = std::unique_ptr<cairo_t, ContextDeleter>;
 // The FreeType library and face live for the whole process: cairo caches font faces beyond a
 // single render, so they cannot be freed per call. They are created once and never modified.
 cairo_font_face_t* sharedFontFace() {
+    // cairo_set_font_face takes a non-const face, so the pointee cannot be const.
+    // NOLINTNEXTLINE(misc-const-correctness)
     static cairo_font_face_t* const FACE = [] {
         FT_Library library = nullptr;
         FT_Face face = nullptr;

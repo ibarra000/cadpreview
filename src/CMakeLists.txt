@@ -35,11 +35,18 @@ target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(cadpreview_core PRIVATE cadpreview_cairo PNG::PNG)
 if(CADPREVIEW_WITH_DWG)
     message(WARNING "CADPREVIEW_WITH_DWG links LibreDWG: the resulting binaries are GPL-3.0-or-later.")
-    # GLOBAL: the static core passes this dependency on to tests, CLI and fuzz targets, which
-    # live in other directories.
-    find_package(unofficial-libredwg CONFIG REQUIRED GLOBAL)
+    find_package(unofficial-libredwg CONFIG REQUIRED)
+    # LibreDWG names its target "libredwg" under MSVC and "redwg" elsewhere, and the vcpkg port
+    # exports it under that name.
+    if(TARGET unofficial::libredwg::libredwg)
+        set(cadpreview_libredwg unofficial::libredwg::libredwg)
+    elseif(TARGET unofficial::libredwg::redwg)
+        set(cadpreview_libredwg unofficial::libredwg::redwg)
+    else()
+        message(FATAL_ERROR "the unofficial-libredwg package defines no known target")
+    endif()
     target_sources(cadpreview_core PRIVATE formats/dwg/libredwg_reader.cpp)
-    target_link_libraries(cadpreview_core PRIVATE unofficial::libredwg::libredwg)
+    target_link_libraries(cadpreview_core PRIVATE ${cadpreview_libredwg})
     target_compile_definitions(cadpreview_core PRIVATE CADPREVIEW_WITH_DWG)
 endif()
 cadpreview_embed_file(cadpreview_core
