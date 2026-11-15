@@ -1,0 +1,15 @@
+---
+InheritParentConfig: true
+# gtest assertion macros are opaque to these checks: ASSERT_TRUE(x.has_value()) guards the
+# access but the optional checker cannot see it, TEST bodies inflate complexity, and fixed seeds
+# make the randomized tests reproducible.
+Checks: >
+  -bugprone-unchecked-optional-access,
+  -bugprone-random-generator-seed,
+  -bugprone-exception-escape,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -readability-function-cognitive-complexity,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-non-private-member-variables-in-classes
+...

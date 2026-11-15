@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/CadPreview/CadPreview.csproj" />
+  <Project Path="tests/CadPreview.Tests/CadPreview.Tests.csproj" />
+</Solution>

@@ -1,0 +1,54 @@
+configure_file(
+    ${PROJECT_SOURCE_DIR}/include/cadpreview/version.h.in
+    ${PROJECT_BINARY_DIR}/include/cadpreview/version.h
+    @ONLY)
+
+add_library(cadpreview_core STATIC
+    common/log.cpp
+    common/utf8.cpp
+    containers/source.cpp
+    formats/detect.cpp
+    formats/format.cpp
+    render/font5x7.cpp
+    render/image.cpp
+    render/png.cpp
+    render/text.cpp
+    tiers/ladder.cpp
+    tiers/pipeline.cpp
+    tiers/placeholder.cpp)
+target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(cadpreview_core PRIVATE PNG::PNG)
+set_target_properties(cadpreview_core PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON)
+cadpreview_configure_target(cadpreview_core)
+
+add_library(cadpreview SHARED api/cadpreview_api.cpp)
+add_library(cadpreview::cadpreview ALIAS cadpreview)
+target_include_directories(cadpreview PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_definitions(cadpreview PRIVATE CADPREVIEW_BUILD)
+target_link_libraries(cadpreview PRIVATE cadpreview_core)
+set_target_properties(cadpreview PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+cadpreview_configure_target(cadpreview)
+
+if(WIN32)
+    configure_file(api/cadpreview.rc.in ${CMAKE_CURRENT_BINARY_DIR}/cadpreview.rc @ONLY)
+    target_sources(cadpreview PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/cadpreview.rc)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(export_map ${CMAKE_CURRENT_SOURCE_DIR}/api/cadpreview.map)
+    target_link_options(cadpreview PRIVATE
+        "LINKER:--version-script=${export_map}"
+        "LINKER:--exclude-libs,ALL")
+    if(NOT CADPREVIEW_INSTRUMENTED)
+        target_link_options(cadpreview PRIVATE "LINKER:--no-undefined")
+    endif()
+    set_property(TARGET cadpreview APPEND PROPERTY LINK_DEPENDS ${export_map})
+endif()

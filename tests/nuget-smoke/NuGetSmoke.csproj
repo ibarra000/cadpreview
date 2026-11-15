@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A plain console app that consumes the packed CadPreview package (see tools/nuget.py). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CadPreviewVersion Condition="'$(CadPreviewVersion)' == ''">0.0.0-dev</CadPreviewVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CadPreview" Version="[$(CadPreviewVersion)]" />
+  </ItemGroup>
+
+</Project>

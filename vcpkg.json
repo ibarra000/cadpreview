@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "cadpreview",
+  "description": "Read-only 2D PNG previews for CAD files",
+  "license": "Apache-2.0",
+  "builtin-baseline": "9eec002df1cd109f8f104cd966a763daf9751489",
+  "dependencies": [
+    "libpng"
+  ],
+  "features": {
+    "tests": {
+      "description": "Build the C++ test suites",
+      "dependencies": [
+        "gtest"
+      ]
+    }
+  }
+}

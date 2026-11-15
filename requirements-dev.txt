@@ -1,0 +1,5 @@
+# Development and CI tools. Not needed to build or use the library.
+-r requirements-test.txt
+pre-commit==4.7.0
+gcovr==8.8
+clang-tidy==23.1.4

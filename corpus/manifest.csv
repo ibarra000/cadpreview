@@ -1,0 +1,6 @@
+path,format,software,file_version,size_bytes,sha256,origin,contributor,license,source,date_added,notes
+synthetic/cfb-signature-only.bin,unknown,,,512,a899fb4496afa7230c378d5be03cf3461990994993110fd2dad3257111081275,synthetic,cadpreview project,Apache-2.0,[MS-CFB] 2.2 header signature followed by 504 zero bytes,2026-11-14,Container signature with no valid header fields
+synthetic/empty.bin,unknown,,,0,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855,synthetic,cadpreview project,Apache-2.0,generated: zero-length file,2026-11-14,Exercises the empty-input placeholder
+synthetic/minimal-stored.zip,unknown,,,122,7debec16437fe770ca8a221246bdd5d62b45c8c6e7756d240df24f089da77bd9,synthetic,cadpreview project,Apache-2.0,"generated: Python zipfile, one stored entry hello.txt dated 1980-01-01 (APPNOTE 4.3.7 local header)",2026-11-14,ZIP archive that is not a CAD format
+synthetic/plain-text.txt,unknown,,,36,d48f04e13e893f8ea75be9178ddbdd011811697f047c1f8e675c91077d05580b,synthetic,cadpreview project,Apache-2.0,generated: one line of ASCII text,2026-11-14,Text that matches no format
+synthetic/random-1k.bin,unknown,,,1024,a3465fa70cdd0d4ce8360631ba2ab1d3854db366d663c56988d2bc712a8a0f94,synthetic,cadpreview project,Apache-2.0,generated: Python random.Random(20261114).randbytes(1024),2026-11-14,Unstructured bytes

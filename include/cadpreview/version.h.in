@@ -1,0 +1,13 @@
+#ifndef CADPREVIEW_VERSION_H
+#define CADPREVIEW_VERSION_H
+
+/// Major version of the headers; changes only on ABI breaks.
+#define CP_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+/// Minor version of the headers; grows when features are added.
+#define CP_VERSION_MINOR @PROJECT_VERSION_MINOR@
+/// Patch version of the headers.
+#define CP_VERSION_PATCH @PROJECT_VERSION_PATCH@
+/// Full semantic version of the headers, e.g. "0.1.0".
+#define CP_VERSION_STRING "@PROJECT_VERSION@"
+
+#endif

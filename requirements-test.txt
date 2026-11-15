@@ -1,0 +1,2 @@
+# Needed to run the test suites through CTest.
+pytest==9.2.0

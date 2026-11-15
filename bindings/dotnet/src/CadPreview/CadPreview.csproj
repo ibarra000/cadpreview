@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Must differ from the native cadpreview.dll: Windows file names ignore case, and
+         RID-specific publishes put both files in one folder. -->
+    <AssemblyName>CadPreview.Net</AssemblyName>
+    <RootNamespace>CadPreview</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The real version comes from the CMake project version via tools/nuget.py. -->
+    <Version>0.0.0-dev</Version>
+    <PackageId>CadPreview</PackageId>
+    <Authors>The cadpreview Authors</Authors>
+    <Description>Read-only 2D PNG previews for CAD files: a .NET wrapper over the native cadpreview library.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/ibarra000/cadpreview</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ibarra000/cadpreview</RepositoryUrl>
+    <PackageTags>cad;preview;thumbnail;png</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CadPreview.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../../../THIRD_PARTY_NOTICES.md" Pack="true" PackagePath="/" />
+    <None Include="../../../../NOTICE" Pack="true" PackagePath="/" />
+    <None Include="../../../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="$(CadPreviewNativeWinX64)/cadpreview.dll"
+          Condition="'$(CadPreviewNativeWinX64)' != ''"
+          Pack="true" PackagePath="runtimes/win-x64/native" Visible="false" />
+    <None Include="$(CadPreviewNativeWinArm64)/cadpreview.dll"
+          Condition="'$(CadPreviewNativeWinArm64)' != ''"
+          Pack="true" PackagePath="runtimes/win-arm64/native" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="RequireNativeAssets" BeforeTargets="GenerateNuspec">
+    <Error Condition="'$(CadPreviewNativeWinX64)' == ''"
+           Text="Pack through tools/nuget.py so the native cadpreview.dll is included." />
+  </Target>
+
+</Project>

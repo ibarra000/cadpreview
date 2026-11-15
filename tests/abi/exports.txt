@@ -1,0 +1,8 @@
+cp_detect_format
+cp_preview_free
+cp_preview_info
+cp_preview_png
+cp_reason_name
+cp_render_file
+cp_render_memory
+cp_version

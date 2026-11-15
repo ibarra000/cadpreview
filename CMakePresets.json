@@ -1,0 +1,430 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 31,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_COMPILE_WARNING_AS_ERROR": "ON",
+        "CMAKE_LINK_WARNING_AS_ERROR": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "CADPREVIEW_BUILD_DOTNET_TESTS": "ON"
+      }
+    },
+    {
+      "name": "win-debug",
+      "displayName": "Windows x64 Debug (MSVC)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "win-release",
+      "displayName": "Windows x64 Release (MSVC)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "win-asan",
+      "displayName": "Windows x64 AddressSanitizer (MSVC)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CADPREVIEW_SANITIZE": "address",
+        "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-asan"
+      }
+    },
+    {
+      "name": "win-arm64-release",
+      "displayName": "Windows ARM64 Release (MSVC, native)",
+      "inherits": "win-release",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug (GCC)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CADPREVIEW_BUILD_DOTNET_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "displayName": "Linux AddressSanitizer + UBSan (GCC)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CADPREVIEW_SANITIZE": "address;undefined"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "displayName": "Linux ThreadSanitizer (GCC)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CADPREVIEW_SANITIZE": "thread"
+      }
+    },
+    {
+      "name": "linux-coverage",
+      "displayName": "Linux coverage (GCC + gcov)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CADPREVIEW_COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "linux-clang",
+      "displayName": "Linux Debug (Clang)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "linux-fuzz",
+      "displayName": "Linux libFuzzer (Clang)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CADPREVIEW_LIBFUZZER": "ON",
+        "CADPREVIEW_SANITIZE": "address;undefined",
+        "CADPREVIEW_BUILD_TESTS": "OFF",
+        "CADPREVIEW_BUILD_CLI": "OFF",
+        "VCPKG_MANIFEST_FEATURES": ""
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win-debug",
+      "configurePreset": "win-debug"
+    },
+    {
+      "name": "win-release",
+      "configurePreset": "win-release"
+    },
+    {
+      "name": "win-asan",
+      "configurePreset": "win-asan"
+    },
+    {
+      "name": "win-arm64-release",
+      "configurePreset": "win-arm64-release"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan"
+    },
+    {
+      "name": "linux-tsan",
+      "configurePreset": "linux-tsan"
+    },
+    {
+      "name": "linux-coverage",
+      "configurePreset": "linux-coverage"
+    },
+    {
+      "name": "linux-clang",
+      "configurePreset": "linux-clang"
+    },
+    {
+      "name": "linux-fuzz",
+      "configurePreset": "linux-fuzz",
+      "targets": [
+        "fuzz_render",
+        "fuzz_c_api"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 600
+      }
+    },
+    {
+      "name": "win-debug",
+      "inherits": "test-base",
+      "configurePreset": "win-debug"
+    },
+    {
+      "name": "win-release",
+      "inherits": "test-base",
+      "configurePreset": "win-release"
+    },
+    {
+      "name": "win-asan",
+      "inherits": "test-base",
+      "configurePreset": "win-asan"
+    },
+    {
+      "name": "win-arm64-release",
+      "inherits": "test-base",
+      "configurePreset": "win-arm64-release"
+    },
+    {
+      "name": "linux-debug",
+      "inherits": "test-base",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-asan",
+      "inherits": "test-base",
+      "configurePreset": "linux-asan",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "inherits": "test-base",
+      "configurePreset": "linux-tsan",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
+      }
+    },
+    {
+      "name": "linux-coverage",
+      "inherits": "test-base",
+      "configurePreset": "linux-coverage"
+    },
+    {
+      "name": "linux-clang",
+      "inherits": "test-base",
+      "configurePreset": "linux-clang"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "win-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-debug"
+        },
+        {
+          "type": "build",
+          "name": "win-debug"
+        },
+        {
+          "type": "test",
+          "name": "win-debug"
+        }
+      ]
+    },
+    {
+      "name": "win-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-release"
+        },
+        {
+          "type": "build",
+          "name": "win-release"
+        },
+        {
+          "type": "test",
+          "name": "win-release"
+        }
+      ]
+    },
+    {
+      "name": "win-asan",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-asan"
+        },
+        {
+          "type": "build",
+          "name": "win-asan"
+        },
+        {
+          "type": "test",
+          "name": "win-asan"
+        }
+      ]
+    },
+    {
+      "name": "win-arm64-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-arm64-release"
+        },
+        {
+          "type": "build",
+          "name": "win-arm64-release"
+        },
+        {
+          "type": "test",
+          "name": "win-arm64-release"
+        }
+      ]
+    },
+    {
+      "name": "linux-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-debug"
+        },
+        {
+          "type": "build",
+          "name": "linux-debug"
+        },
+        {
+          "type": "test",
+          "name": "linux-debug"
+        }
+      ]
+    },
+    {
+      "name": "linux-asan",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-asan"
+        },
+        {
+          "type": "build",
+          "name": "linux-asan"
+        },
+        {
+          "type": "test",
+          "name": "linux-asan"
+        }
+      ]
+    },
+    {
+      "name": "linux-tsan",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-tsan"
+        },
+        {
+          "type": "build",
+          "name": "linux-tsan"
+        },
+        {
+          "type": "test",
+          "name": "linux-tsan"
+        }
+      ]
+    },
+    {
+      "name": "linux-coverage",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-coverage"
+        },
+        {
+          "type": "build",
+          "name": "linux-coverage"
+        },
+        {
+          "type": "test",
+          "name": "linux-coverage"
+        }
+      ]
+    },
+    {
+      "name": "linux-clang",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-clang"
+        },
+        {
+          "type": "build",
+          "name": "linux-clang"
+        },
+        {
+          "type": "test",
+          "name": "linux-clang"
+        }
+      ]
+    },
+    {
+      "name": "linux-fuzz",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-fuzz"
+        },
+        {
+          "type": "build",
+          "name": "linux-fuzz"
+        }
+      ]
+    }
+  ]
+}
