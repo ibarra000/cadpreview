@@ -21,7 +21,8 @@ signatures (see [containers.md](containers.md)) and reports them as "unknown".
 | GCC 15 strict warnings (local syntax check) | clean |
 | clang-tidy 23 / pre-commit hooks | clean |
 | NuGet | packs win-x64 (+ win-arm64 in CI); fresh console app restores it and renders, including a RID-specific publish |
-| CI (GitHub Actions) | see the run linked from the README badge-free Actions tab |
+| CI (GitHub Actions run 43732597915) | all 12 jobs green: Windows x64 + ASan, Windows ARM64, Linux GCC / Clang / ASan+UBSan / TSan, coverage, clang-tidy, cppcheck, libFuzzer (2 harnesses), pre-commit, NuGet pack + smoke on x64 and ARM64 |
+| Line coverage (gcovr, src + cli) | 91.6% lines, 99.2% functions, 66.5% branches (gate: 80% lines) |
 
 Most common failure reasons: `unknown_format` (8), `placeholder_requested` (4),
 `empty_input` (3).
