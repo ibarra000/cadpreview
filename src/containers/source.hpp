@@ -32,6 +32,9 @@ public:
     /// Fills out with the bytes at offset; false (and out unspecified) when out of range or on
     /// an I/O error.
     [[nodiscard]] virtual bool readAt(std::uint64_t offset, std::span<std::byte> out) = 0;
+
+    /// The file behind this source, for readers that can only open paths; null for memory.
+    [[nodiscard]] virtual const std::filesystem::path* filePath() const noexcept { return nullptr; }
 };
 
 /// Source over caller-owned memory, which must outlive it.

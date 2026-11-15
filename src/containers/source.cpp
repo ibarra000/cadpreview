@@ -13,8 +13,10 @@ namespace {
 
 class FileSource final : public Source {
 public:
-    FileSource(std::ifstream stream, std::uint64_t size)
-        : stream_(std::move(stream)), size_(size) {}
+    FileSource(std::filesystem::path path, std::ifstream stream, std::uint64_t size)
+        : path_(std::move(path)), stream_(std::move(stream)), size_(size) {}
+
+    [[nodiscard]] const std::filesystem::path* filePath() const noexcept override { return &path_; }
 
     [[nodiscard]] std::uint64_t size() const noexcept override { return size_; }
 
@@ -33,6 +35,7 @@ public:
     }
 
 private:
+    std::filesystem::path path_;
     std::ifstream stream_;
     std::uint64_t size_;
 };
@@ -65,7 +68,7 @@ FileOpenResult openFile(const std::filesystem::path& path) {
     if (!stream) {
         return {nullptr, "cannot open file"};
     }
-    return {std::make_unique<FileSource>(std::move(stream), size), {}};
+    return {std::make_unique<FileSource>(path, std::move(stream), size), {}};
 }
 
 std::vector<std::byte> readAll(Source& source, std::uint64_t maxBytes) {

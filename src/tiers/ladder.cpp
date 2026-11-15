@@ -146,7 +146,12 @@ const TierEntry* TierRegistry::find(Format format, Tier tier) const {
 }
 
 const TierRegistry& defaultRegistry() {
-    static const TierRegistry DEFAULT_REGISTRY(dxfTiers());
+    static const TierRegistry DEFAULT_REGISTRY([] {
+        std::vector<TierEntry> entries = dxfTiers();
+        std::vector<TierEntry> dwg = dwgTiers();
+        entries.insert(entries.end(), dwg.begin(), dwg.end());
+        return entries;
+    }());
     return DEFAULT_REGISTRY;
 }
 
@@ -177,11 +182,19 @@ Preview runLadder(Source& source, const Detection& detection, const RenderOption
         return makePlaceholder(detection, Reason::TierUnavailable,
                                unavailableText(detection, options.tier), options.size);
     }
+    if (options.tier != Tier::Auto && !tiers.front()->unavailable.empty()) {
+        return makePlaceholder(detection, Reason::TierUnavailable,
+                               std::string(tiers.front()->unavailable), options.size);
+    }
 
     const TierContext context{source, detection, options.size, log};
     std::vector<std::string> failures;
     std::vector<std::string> warnings;
     for (const TierEntry* entry : tiers) {
+        if (!entry->unavailable.empty()) {
+            warnings.emplace_back(entry->unavailable);
+            continue;
+        }
         TierOutcome outcome = runTier(*entry, context);
         warnings.insert(warnings.end(), outcome.warnings.begin(), outcome.warnings.end());
         const auto number = static_cast<std::uint32_t>(entry->tier);

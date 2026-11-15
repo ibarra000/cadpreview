@@ -9,6 +9,11 @@ namespace cadpreview::dxf {
 
 namespace {
 
+// ASCII lower case; leaves bytes outside A-Z unchanged apart from setting bit 5.
+char asciiFold(char c) {
+    return static_cast<char>(static_cast<unsigned char>(c) | 0x20U);
+}
+
 void appendUtf8(std::string& out, std::uint32_t code) {
     if (code == 0 || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
         out.push_back('?');
@@ -37,7 +42,7 @@ std::size_t unicodeEscape(std::string_view rest, std::string& out) {
     }
     std::uint32_t code = 0;
     for (const char c : rest.substr(2, 4)) {
-        const auto lower = static_cast<char>(c | 0x20);
+        const char lower = asciiFold(c);
         const bool digit = c >= '0' && c <= '9';
         const bool letter = lower >= 'a' && lower <= 'f';
         if (!digit && !letter) {
@@ -54,7 +59,7 @@ std::size_t percentCode(std::string_view rest, std::string& out) {
     if (rest.empty()) {
         return 0;
     }
-    switch (rest.front() | 0x20) {
+    switch (asciiFold(rest.front())) {
     case 'c':
         appendUtf8(
             out, 0x00D8); // diameter: the embedded font has no U+2300, and Ø is the usual stand-in

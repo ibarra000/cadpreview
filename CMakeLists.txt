@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.31)
 
 project(cadpreview
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Read-only 2D PNG previews for CAD files"
     HOMEPAGE_URL "https://github.com/ibarra000/cadpreview"
     LANGUAGES C CXX)
@@ -29,6 +29,7 @@ option(CADPREVIEW_BUILD_DOTNET_TESTS "Run the .NET wrapper tests through CTest" 
 option(CADPREVIEW_PYTHON_TESTS "Run the pytest suites (CLI, corpus tools) through CTest" ON)
 option(CADPREVIEW_LIBFUZZER "Build libFuzzer harnesses (clang only)" OFF)
 option(CADPREVIEW_COVERAGE "Instrument for gcov coverage (GCC only)" OFF)
+option(CADPREVIEW_WITH_DWG "DWG vector rendering through LibreDWG; makes the build GPL-3.0-or-later" OFF)
 set(CADPREVIEW_SANITIZE "" CACHE STRING "Sanitizers: address, address;undefined, or thread")
 
 include(GNUInstallDirs)

@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace cadpreview {
@@ -68,9 +69,17 @@ struct TierOutcome {
 using TierFunction = std::function<TierOutcome(const TierContext&)>;
 
 struct TierEntry {
+    TierEntry(Format entryFormat, Tier entryTier, TierFunction function,
+              std::string_view unavailableReason = {})
+        : format(entryFormat), tier(entryTier), run(std::move(function)),
+          unavailable(unavailableReason) {}
+
     Format format;
     Tier tier;
     TierFunction run;
+    /// Set when this build leaves the tier out (for example DWG vectors without LibreDWG). The
+    /// ladder then skips it with a warning, and forcing it reports this text.
+    std::string_view unavailable;
 };
 
 /// Immutable table of the tiers implemented for each format.

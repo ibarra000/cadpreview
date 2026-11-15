@@ -29,6 +29,10 @@ constexpr double INK_GRAY = 0x20 / 255.0; // #202124, close to black but softer 
 constexpr double CAP_HEIGHT = 0.714;      // Noto Sans cap height as a fraction of the em
 constexpr double MIN_TEXT_PIXELS = 1.0;   // smaller text is invisible and skipped
 constexpr double REFERENCE_SIZE = 512.0;  // output size at which strokes are one pixel wide
+constexpr double MAX_TEXT_CANVASES = 4.0; // taller text than this many canvases is skipped
+constexpr double MIN_WIDTH_FACTOR = 0.01;
+constexpr double MAX_WIDTH_FACTOR = 100.0;
+constexpr double TAU = 2 * std::numbers::pi;
 
 struct SurfaceDeleter {
     void operator()(cairo_surface_t* s) const noexcept { cairo_surface_destroy(s); }
@@ -46,7 +50,9 @@ cairo_font_face_t* sharedFontFace() {
         FT_Library library = nullptr;
         FT_Face face = nullptr;
         const auto font = embeddedFont();
-        const auto* bytes = static_cast<const FT_Byte*>(static_cast<const void*>(font.data()));
+        // std::byte and unsigned char may alias each other, so this cast is well defined.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        const auto* bytes = reinterpret_cast<const FT_Byte*>(font.data());
         if (FT_Init_FreeType(&library) != 0 ||
             FT_New_Memory_Face(library, bytes, static_cast<FT_Long>(font.size()), 0, &face) != 0) {
             throw std::runtime_error("cannot load the embedded font");
@@ -65,12 +71,15 @@ struct Fit {
     [[nodiscard]] double y(double worldY) const { return half - (worldY - center.y) * scale; }
 };
 
+// Halves are taken before subtracting so extents near +-DBL_MAX do not overflow to infinity.
 Fit fitTo(const Box& box, std::uint32_t size) {
     const double inner = size - 2.0 * canvasMargin(size);
-    const double span = std::max(box.max.x - box.min.x, box.max.y - box.min.y);
+    const double halfSpan =
+        std::max((box.max.x / 2) - (box.min.x / 2), (box.max.y / 2) - (box.min.y / 2));
+    const double scale = (inner / 2) / halfSpan;
     Fit fit;
-    fit.scale = (span > 0 && std::isfinite(span)) ? inner / span : 1.0;
-    fit.center = {(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2};
+    fit.scale = (halfSpan > 0 && std::isfinite(scale)) ? scale : 1.0;
+    fit.center = {(box.min.x / 2) + (box.max.x / 2), (box.min.y / 2) + (box.max.y / 2)};
     fit.half = size / 2.0;
     return fit;
 }
@@ -103,16 +112,31 @@ void drawArcs(cairo_t* cr, const Drawing& drawing, const Fit& fit) {
             !std::isfinite(arc.startAngle) || !std::isfinite(arc.endAngle)) {
             continue;
         }
-        double end = arc.endAngle;
-        while (end <= arc.startAngle) {
-            end += 2 * std::numbers::pi;
+        // fmod, not repeated addition: past about 1e16, adding 2*pi no longer changes a double.
+        const double start = std::fmod(arc.startAngle, TAU);
+        double sweep = std::fmod(arc.endAngle - arc.startAngle, TAU);
+        if (!std::isfinite(sweep) || sweep <= 0) {
+            sweep += TAU;
         }
+        const double end = start + (std::isfinite(sweep) ? sweep : TAU);
         cairo_new_sub_path(cr);
         // The y axis is flipped on screen, so counter-clockwise becomes negative angles.
         cairo_arc_negative(cr, fit.x(arc.center.x), fit.y(arc.center.y), arc.radius * fit.scale,
-                           -arc.startAngle, -end);
+                           -start, -end);
         cairo_stroke(cr);
     }
+}
+
+double horizontalOffset(HAlign align, double advance) {
+    switch (align) {
+    case HAlign::Left:
+        return 0;
+    case HAlign::Center:
+        return -advance / 2;
+    case HAlign::Right:
+        return -advance;
+    }
+    return 0;
 }
 
 double verticalOffset(VAlign align, double capHeight, double descent) {
@@ -131,8 +155,11 @@ double verticalOffset(VAlign align, double capHeight, double descent) {
 
 void drawText(cairo_t* cr, const TextItem& text, const Fit& fit) {
     const double capPixels = text.height * fit.scale;
+    // Text far larger than the canvas cannot be read and makes FreeType work hard; a
+    // non-finite rotation would put the cairo context into a permanent error state.
+    const double maxPixels = MAX_TEXT_CANVASES * 2 * fit.half;
     if (!finite(text.position) || !std::isfinite(capPixels) || capPixels < MIN_TEXT_PIXELS ||
-        text.text.empty()) {
+        capPixels > maxPixels || !std::isfinite(text.rotation) || text.text.empty()) {
         return;
     }
     const std::string utf8 = isValidUtf8(text.text) ? text.text : toDisplayAscii(text.text);
@@ -142,13 +169,12 @@ void drawText(cairo_t* cr, const TextItem& text, const Fit& fit) {
     cairo_text_extents(cr, utf8.c_str(), &extents);
     cairo_font_extents_t font{};
     cairo_font_extents(cr, &font);
-    const double hOffset = text.hAlign == HAlign::Left     ? 0
-                           : text.hAlign == HAlign::Center ? -extents.x_advance / 2
-                                                           : -extents.x_advance;
+    const double hOffset = horizontalOffset(text.hAlign, extents.x_advance);
     cairo_translate(cr, fit.x(text.position.x), fit.y(text.position.y));
     cairo_rotate(cr, -text.rotation);
-    cairo_scale(cr, std::isfinite(text.widthFactor) && text.widthFactor > 0 ? text.widthFactor : 1,
-                1);
+    const bool usableWidth = std::isfinite(text.widthFactor) && text.widthFactor > 0;
+    cairo_scale(
+        cr, usableWidth ? std::clamp(text.widthFactor, MIN_WIDTH_FACTOR, MAX_WIDTH_FACTOR) : 1, 1);
     cairo_move_to(cr, hOffset, verticalOffset(text.vAlign, capPixels, font.descent));
     cairo_show_text(cr, utf8.c_str());
     cairo_restore(cr);
@@ -163,7 +189,7 @@ Image toImage(cairo_surface_t* surface, std::uint32_t size) {
     for (std::uint32_t y = 0; y < size; ++y) {
         for (std::uint32_t x = 0; x < size; ++x) {
             // ARGB32 is a native-endian 32-bit word; the canvas is opaque, so no unpremultiply.
-            const std::size_t offset = y * stride + x * 4U;
+            const std::size_t offset = (y * stride) + (std::size_t{x} * 4U);
             std::uint32_t word = 0;
             for (std::size_t b = 0; b < 4; ++b) {
                 word |= static_cast<std::uint32_t>(pixels[offset + b]) << (8U * b);

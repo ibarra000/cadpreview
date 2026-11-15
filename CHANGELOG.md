@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - unreleased
+
+### Added
+
+- DWG: format and version detection, and tier 1 (embedded preview) read from the documented
+  image-seeker layout, which was confirmed on 17 Autodesk sample files (AC1021, AC1024).
+- DWG tier 4 through LibreDWG, available only in the opt-in GPL build (`CADPREVIEW_WITH_DWG`).
+  Default builds mark the tier unavailable and add a warning to the preview.
+- DXF (ASCII): tier 1 from THUMBNAILIMAGE, and tier 4 from the in-house reader.
+- Tier 4 drawing with statically linked cairo and an embedded Noto Sans subset.
+- In-house DIB decoder and libpng PNG decoding, fitted onto the canvas with the 5% margin.
+- `CP_FORMAT_DWG`, `CP_FORMAT_DXF`; `CadFormat.Dwg`, `CadFormat.Dxf`.
+- Fuzz harnesses for DXF, the DWG preview and image decoding, plus nightly fuzzing.
+- `corpus.py add` and local-only `vendor-sample` corpus entries.
+
+### Changed
+
+- The registry can list tiers that a build leaves out; forcing one reports why.
+
 ## [0.1.0] - unreleased
 
 ### Added

@@ -54,10 +54,10 @@ TEST(Extents, ArcBoundsFollowTheSweep) {
 }
 
 TEST(Extents, IgnoreNonFiniteCoordinates) {
-    constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
+    constexpr double NOT_A_NUMBER = std::numeric_limits<double>::quiet_NaN();
     Drawing drawing;
     drawing.polylines.push_back(
-        {{{NaN, 0}, {1, 1}, {2, std::numeric_limits<double>::infinity()}}, false});
+        {{{NOT_A_NUMBER, 0}, {1, 1}, {2, std::numeric_limits<double>::infinity()}}, false});
     const auto box = extentsOf(drawing);
     ASSERT_TRUE(box.has_value());
     EXPECT_DOUBLE_EQ(box->min.x, 1);
@@ -88,6 +88,33 @@ TEST(CairoRenderer, DrawsTextWithTheEmbeddedFont) {
     Drawing drawing;
     drawing.texts.push_back({"HELLO", {0, 0}, 10.0, 0.0, 1.0, HAlign::Left, VAlign::Baseline});
     EXPECT_GT(inkCount(renderDrawing(drawing, 256)), 200U);
+}
+
+TEST(CairoRenderer, HugeArcAnglesFinish) {
+    // Adding 2*pi to 1e18 does not change it; normalising by repeated addition never ends.
+    Drawing drawing;
+    drawing.arcs.push_back({{0, 0}, 1, 1e18, 1e18});
+    drawing.arcs.push_back({{0, 0}, 1, 0, -1e300});
+    EXPECT_NO_THROW(static_cast<void>(renderDrawing(drawing, 64)));
+}
+
+TEST(CairoRenderer, ExtremeExtentsStillRender) {
+    Drawing wide;
+    wide.polylines.push_back({{{-1e308, -1e308}, {1e308, 1e308}}, false});
+    EXPECT_GT(inkCount(renderDrawing(wide, 64)), 0U);
+    Drawing tiny;
+    tiny.polylines.push_back({{{0, 0}, {5e-324, 0}}, false});
+    EXPECT_NO_THROW(static_cast<void>(renderDrawing(tiny, 64)));
+}
+
+TEST(CairoRenderer, SkipsUnusableTextButKeepsTheRest) {
+    Drawing drawing;
+    drawing.polylines.push_back({{{0, 0}, {10, 10}}, false});
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    drawing.texts.push_back({"A", {5, 5}, 1e308, 0.0, 1.0, HAlign::Left, VAlign::Baseline});
+    drawing.texts.push_back({"B", {5, 5}, 1.0, nan, 1.0, HAlign::Left, VAlign::Baseline});
+    drawing.texts.push_back({"C", {5, 5}, 1.0, 0.0, 1e300, HAlign::Left, VAlign::Baseline});
+    EXPECT_GT(inkCount(renderDrawing(drawing, 64)), 0U);
 }
 
 TEST(CairoRenderer, HandlesASinglePointAndRejectsEmptyDrawings) {

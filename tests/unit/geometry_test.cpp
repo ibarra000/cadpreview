@@ -80,6 +80,18 @@ TEST(Spline, ClampedQuadraticPassesThroughEnds) {
     EXPECT_NEAR(points[points.size() / 2].y, 1, 0.01); // peak of the quadratic is half the control
 }
 
+TEST(Spline, VeryHighDegreeFallsBackToTheControlPolygon) {
+    // de Boor costs degree^2 per sample, so absurd degrees are not evaluated.
+    constexpr int DEGREE = 40;
+    std::vector<Point> controls;
+    std::vector<double> knots(DEGREE + 1, 0.0);
+    for (int i = 0; i <= DEGREE; ++i) {
+        controls.push_back({static_cast<double>(i), 0});
+        knots.push_back(1.0);
+    }
+    EXPECT_EQ(splinePoints(DEGREE, knots, controls, {}).size(), controls.size());
+}
+
 TEST(Spline, BadKnotsFallBackToTheControlPolygon) {
     const std::vector<Point> controls{{0, 0}, {1, 1}, {2, 0}};
     EXPECT_EQ(splinePoints(2, std::vector<double>{0, 1}, controls, {}).size(), 3U);

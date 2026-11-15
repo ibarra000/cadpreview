@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace cadpreview {
@@ -28,7 +29,7 @@ struct Header {
 };
 
 std::uint32_t checkedEdge(std::int64_t value) {
-    if (value <= 0 || value > MAX_IMAGE_EDGE) {
+    if (value <= 0 || std::cmp_greater(value, MAX_IMAGE_EDGE)) {
         throw FormatError("bitmap size out of range");
     }
     return static_cast<std::uint32_t>(value);
@@ -119,6 +120,11 @@ Image decodeDib(std::span<const std::byte> data) {
 
     const std::uint64_t rowBits = static_cast<std::uint64_t>(header.width) * header.bitsPerPixel;
     const auto stride = static_cast<std::size_t>(((rowBits + 31U) / 32U) * 4U);
+    // Check that every row is present before allocating the image: a header alone can claim
+    // 8192 x 8192 pixels.
+    if (reader.remaining() / stride < header.height) {
+        throw FormatError("bitmap pixel data is truncated");
+    }
     Image image(header.width, header.height, {});
     for (std::uint32_t stored = 0; stored < header.height; ++stored) {
         const auto row = reader.bytes(stride);

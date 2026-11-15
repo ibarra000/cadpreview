@@ -11,6 +11,8 @@ namespace cadpreview {
 
 namespace {
 
+constexpr std::uint64_t MAX_DEFLATE_RATIO = 1032;
+
 // Frees libpng's read state on every exit path.
 class PngRead {
 public:
@@ -39,6 +41,14 @@ Image decodePngImage(std::span<const std::byte> data) {
     if (image.width == 0 || image.height == 0 || image.width > MAX_IMAGE_EDGE ||
         image.height > MAX_IMAGE_EDGE) {
         throw FormatError("PNG size out of range");
+    }
+    // Deflate expands at most about 1032:1, and each row holds at least a filter byte plus one
+    // bit per pixel. A file too small to hold that much compressed data is rejected before the
+    // full-size pixel buffer is allocated.
+    const std::uint64_t minimumRaw =
+        static_cast<std::uint64_t>(image.height) * (1U + ((image.width + 7U) / 8U));
+    if (minimumRaw > static_cast<std::uint64_t>(data.size()) * MAX_DEFLATE_RATIO) {
+        throw FormatError("PNG is too small for its stated size");
     }
     image.format = PNG_FORMAT_RGBA;
     std::vector<std::uint8_t> rgba(PNG_IMAGE_SIZE(image));

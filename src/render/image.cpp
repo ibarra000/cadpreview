@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 
 namespace cadpreview {
 
@@ -31,13 +32,18 @@ Image::Image(std::uint32_t width, std::uint32_t height, Rgba fill)
 }
 
 Image Image::fromRgba(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba) {
-    Image image(width, height, {});
-    if (rgba.size() != image.rgba_.size()) {
+    const std::size_t expected =
+        static_cast<std::size_t>(checkedEdge(width)) * checkedEdge(height) * CHANNELS;
+    if (rgba.size() != expected) {
         throw std::invalid_argument("pixel buffer size does not match the image");
     }
-    image.rgba_ = std::move(rgba);
-    return image;
+    return Image(width, height, std::move(rgba), Adopt{});
 }
+
+// Takes a buffer whose size fromRgba has already checked, so pixels are never allocated twice.
+Image::Image(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba,
+             Adopt /*tag*/) noexcept
+    : width_(width), height_(height), rgba_(std::move(rgba)) {}
 
 void Image::setPixel(std::uint32_t x, std::uint32_t y, Rgba color) {
     if (x >= width_ || y >= height_) {

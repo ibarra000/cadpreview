@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <span>
 
 namespace cadpreview {
 
@@ -83,11 +84,16 @@ Rgba bilinear(const Image& source, double x, double y) {
     accumulate(corners[1], source.pixel(x1, y0));
     accumulate(corners[2], source.pixel(x0, y1));
     accumulate(corners[3], source.pixel(x1, y1));
+    const std::span<const double> topLeft(corners[0]);
+    const std::span<const double> topRight(corners[1]);
+    const std::span<const double> bottomLeft(corners[2]);
+    const std::span<const double> bottomRight(corners[3]);
     Accumulator result{};
-    for (std::size_t i = 0; i < result.size(); ++i) {
-        const double upper = corners[0][i] + (corners[1][i] - corners[0][i]) * fx;
-        const double lower = corners[2][i] + (corners[3][i] - corners[2][i]) * fx;
-        result[i] = upper + (lower - upper) * fy;
+    const std::span<double> out(result);
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        const double upper = topLeft[i] + (topRight[i] - topLeft[i]) * fx;
+        const double lower = bottomLeft[i] + (bottomRight[i] - bottomLeft[i]) * fx;
+        out[i] = upper + (lower - upper) * fy;
     }
     return toColor(result, 1.0);
 }

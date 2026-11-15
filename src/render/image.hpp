@@ -38,6 +38,10 @@ public:
                   Rgba color) noexcept;
 
 private:
+    struct Adopt {}; // selects the constructor that takes an already sized pixel buffer
+    Image(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba,
+          Adopt /*tag*/) noexcept;
+
     std::uint32_t width_;
     std::uint32_t height_;
     std::vector<std::uint8_t> rgba_;

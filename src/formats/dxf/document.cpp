@@ -3,7 +3,7 @@
 #include "common/errors.hpp"
 
 #include <algorithm>
-#include <cctype>
+#include <cstdint>
 #include <optional>
 #include <utility>
 
@@ -11,7 +11,7 @@ namespace cadpreview::dxf {
 
 namespace {
 
-constexpr int LAYER_FROZEN = 1; // group 70 bit; see notes/dxf.md#layers
+constexpr std::uint64_t LAYER_FROZEN = 1U; // group 70 bit; see notes/dxf.md#layers
 
 // Reads records (a 0 group plus the groups that follow it) with one group of lookahead.
 class RecordReader {
@@ -51,7 +51,7 @@ private:
     }
 
     Tokenizer tokenizer_;
-    const ReadLimits& limits_;
+    ReadLimits limits_;
     std::optional<Group> pending_;
     std::size_t groups_ = 0;
 };
@@ -66,11 +66,16 @@ std::string headerVariable(const Record& section, std::string_view name) {
     return {};
 }
 
+// ASCII only: std::toupper depends on the process locale, which a host may change at any time.
+char asciiUpper(char c) {
+    return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c;
+}
+
 int hexDigit(char c) {
     if (c >= '0' && c <= '9') {
         return c - '0';
     }
-    const char upper = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    const char upper = asciiUpper(c);
     if (upper >= 'A' && upper <= 'F') {
         return upper - 'A' + 10;
     }
@@ -104,7 +109,8 @@ void readTables(RecordReader& reader, Document& document) {
             return;
         }
         if (record->type == "LAYER") {
-            const bool frozen = (record->integer(70, 0) & LAYER_FROZEN) != 0;
+            const bool frozen =
+                (static_cast<std::uint64_t>(record->integer(70, 0)) & LAYER_FROZEN) != 0;
             const bool off = record->integer(62, 7) < 0;
             if (frozen || off) {
                 document.hiddenLayers.insert(upperCase(record->text(2).value_or("")));
@@ -179,8 +185,7 @@ long long Record::integer(int code, long long fallback) const {
 
 std::string upperCase(std::string_view text) {
     std::string result(text);
-    std::ranges::transform(result, result.begin(),
-                           [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    std::ranges::transform(result, result.begin(), asciiUpper);
     return result;
 }
 

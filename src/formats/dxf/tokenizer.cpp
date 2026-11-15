@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -13,7 +14,7 @@ namespace cadpreview::dxf {
 
 namespace {
 
-constexpr std::size_t MAX_LINE = 64 * 1024;
+constexpr std::size_t MAX_LINE = std::size_t{64} * 1024;
 constexpr int COMMENT_CODE = 999;
 constexpr std::string_view BOM = "\xEF\xBB\xBF";
 // see notes/dxf.md#binary-sentinel
@@ -120,11 +121,18 @@ bool isBinaryDxf(std::span<const std::byte> prefix) {
     return asText(prefix).starts_with(BINARY_SENTINEL);
 }
 
+// from_chars accepts "nan" and "inf" but not a leading '+'; DXF writers emit the '+' and
+// never mean the others, so non-finite values are rejected.
 std::optional<double> toDouble(std::string_view value) {
-    const std::string_view text = trim(value);
+    std::string_view text = trim(value);
+    if (text.starts_with('+')) {
+        text.remove_prefix(1);
+    }
     double result = 0;
-    const auto [end, error] = std::from_chars(text.data(), std::to_address(text.end()), result);
-    if (text.empty() || error != std::errc{} || end != std::to_address(text.end())) {
+    const auto [end, error] =
+        std::from_chars(std::to_address(text.begin()), std::to_address(text.end()), result);
+    if (text.empty() || error != std::errc{} || end != std::to_address(text.end()) ||
+        !std::isfinite(result)) {
         return std::nullopt;
     }
     return result;
@@ -136,7 +144,8 @@ std::optional<long long> toInteger(std::string_view value) {
         text.remove_prefix(1);
     }
     long long result = 0;
-    const auto [end, error] = std::from_chars(text.data(), std::to_address(text.end()), result);
+    const auto [end, error] =
+        std::from_chars(std::to_address(text.begin()), std::to_address(text.end()), result);
     if (text.empty() || error != std::errc{} || end != std::to_address(text.end())) {
         return std::nullopt;
     }

@@ -128,6 +128,11 @@ TEST(Dib, RejectsMalformedInput) {
     EXPECT_THROW(static_cast<void>(decodeDib({})), FormatError);
 }
 
+TEST(Dib, RejectsAHeaderThatClaimsMoreRowsThanArePresent) {
+    // 8192 x 8192 x 24 bpp would need 192 MiB of rows; only the 40-byte header is present.
+    EXPECT_THROW(static_cast<void>(decodeDib(infoHeader(8192, 8192, 24))), FormatError);
+}
+
 TEST(PngDecode, RoundTripsOurEncoder) {
     Image source(3, 2, WHITE);
     source.fillRect(0, 1, 1, 1, RED);

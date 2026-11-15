@@ -22,7 +22,7 @@ constexpr std::array<std::byte, 4> ZIP_LOCAL_HEADER{std::byte{0x50}, std::byte{0
                                                     std::byte{0x03}, std::byte{0x04}};
 
 // Enough for the start of a DXF HEADER section, where $ACADVER is the first variable.
-constexpr std::size_t SNIFF_BYTES = 64 * 1024;
+constexpr std::size_t SNIFF_BYTES = std::size_t{64} * 1024;
 constexpr std::size_t DWG_VERSION_LENGTH = 6;
 
 bool startsWith(std::span<const std::byte> data, std::span<const std::byte> prefix) noexcept {

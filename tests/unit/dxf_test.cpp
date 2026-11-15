@@ -111,6 +111,14 @@ TEST(Tokenizer, RecognisesFilesAndVersion) {
     EXPECT_EQ(toInteger("+12"), 12);
 }
 
+TEST(Tokenizer, NumbersMustBeFinite) {
+    EXPECT_FALSE(toDouble("nan"));
+    EXPECT_FALSE(toDouble("inf"));
+    EXPECT_FALSE(toDouble("-Infinity"));
+    EXPECT_FALSE(toDouble("1e999"));
+    EXPECT_EQ(toDouble("+1.5"), 1.5);
+}
+
 TEST(Document, ReadsLayersBlocksEntitiesAndThumbnail) {
     const std::string text = file({
         section("HEADER", {{9, "$ACADVER"}, {1, "AC1032"}}),
@@ -239,8 +247,48 @@ TEST(Entities, ArraysCountTowardTheLimit) {
     });
     EXPECT_EQ(drawingOf(text).polylines.size(), 1200U);
     ConvertLimits limits;
-    limits.maxPrimitives = 100;
+    limits.maxWork = 100;
     EXPECT_THROW(static_cast<void>(drawingOf(text, limits)), FormatError);
+}
+
+TEST(Entities, HugeArrayCountsDoNotWrapAroundTheLimit) {
+    // 2^32 x 2^32 copies wraps to 0 in 64-bit arithmetic.
+    const std::string text = file({
+        section("BLOCKS", concat({{{0, "BLOCK"}, {2, "B"}}, line(0, 0, 1, 0), {{0, "ENDBLK"}}})),
+        section("ENTITIES", {{0, "INSERT"}, {2, "B"}, {70, "4294967296"}, {71, "4294967296"}}),
+    });
+    EXPECT_THROW(static_cast<void>(drawingOf(text)), FormatError);
+}
+
+TEST(Entities, BlockFanOutIsChargedEvenWhenNothingIsDrawn) {
+    // Each level inserts the one below 100 times; the innermost block draws nothing. Without a
+    // charge per visited record this is 10^12 visits.
+    Pairs blocks{{0, "BLOCK"}, {2, "B0"}, {0, "UNKNOWN_THING"}, {0, "ENDBLK"}};
+    for (int level = 1; level <= 6; ++level) {
+        const Pairs next{{0, "BLOCK"},  {2, "B" + std::to_string(level)},
+                         {0, "INSERT"}, {2, "B" + std::to_string(level - 1)},
+                         {70, "10"},    {71, "10"},
+                         {0, "ENDBLK"}};
+        blocks.insert(blocks.end(), next.begin(), next.end());
+    }
+    const std::string text =
+        file({section("BLOCKS", blocks), section("ENTITIES", {{0, "INSERT"}, {2, "B6"}})});
+    EXPECT_THROW(static_cast<void>(drawingOf(text)), FormatError);
+}
+
+TEST(Entities, PointsAndTextBytesCountTowardTheLimit) {
+    Pairs polyline{{0, "LWPOLYLINE"}};
+    for (int i = 0; i < 50; ++i) {
+        polyline.emplace_back(10, std::to_string(i));
+        polyline.emplace_back(20, "0");
+    }
+    ConvertLimits limits;
+    limits.maxWork = 20;
+    EXPECT_THROW(static_cast<void>(drawingOf(file({section("ENTITIES", polyline)}), limits)),
+                 FormatError);
+    const std::string longText = file({section(
+        "ENTITIES", {{0, "TEXT"}, {10, "0"}, {20, "0"}, {40, "1"}, {1, std::string(1000, 'x')}})});
+    EXPECT_THROW(static_cast<void>(drawingOf(longText, limits)), FormatError);
 }
 
 TEST(Entities, SelfReferencingBlocksStopAtTheDepthLimit) {

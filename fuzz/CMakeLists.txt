@@ -27,5 +27,8 @@ if(CADPREVIEW_LIBFUZZER)
 endif()
 
 cadpreview_add_fuzz_harness(fuzz_render fuzz_render.cpp)
+cadpreview_add_fuzz_harness(fuzz_dxf fuzz_dxf.cpp)
+cadpreview_add_fuzz_harness(fuzz_dwg_preview fuzz_dwg_preview.cpp)
+cadpreview_add_fuzz_harness(fuzz_image_decode fuzz_image_decode.cpp)
 cadpreview_add_fuzz_harness(fuzz_c_api fuzz_c_api.cpp ${PROJECT_SOURCE_DIR}/src/api/cadpreview_api.cpp)
 target_compile_definitions(fuzz_c_api PRIVATE CADPREVIEW_BUILD)

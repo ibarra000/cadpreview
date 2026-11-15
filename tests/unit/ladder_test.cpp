@@ -159,6 +159,20 @@ TEST_F(LadderTest, KnownFormatWithoutTiersIsUnavailable) {
     EXPECT_EQ(preview.reason, Reason::TierUnavailable);
 }
 
+TEST_F(LadderTest, UnavailableTiersWarnInAutoAndExplainWhenForced) {
+    const TierRegistry registry({
+        {FAKE_FORMAT, Tier::Thumbnail, failWith("no preview stream", &calls_, Tier::Thumbnail)},
+        {FAKE_FORMAT, Tier::Vector, failWith("unused", &calls_, Tier::Vector), "needs option X"},
+    });
+    const Preview automatic = run(registry);
+    EXPECT_EQ(automatic.reason, Reason::TiersFailed);
+    EXPECT_EQ(automatic.warnings, "needs option X");
+    EXPECT_EQ(calls_, (std::vector<Tier>{Tier::Thumbnail}));
+    const Preview forced = run(registry, Tier::Vector);
+    EXPECT_EQ(forced.reason, Reason::TierUnavailable);
+    EXPECT_EQ(forced.reasonText, "needs option X");
+}
+
 TEST(TierRegistry, OrdersTiersAscending) {
     const auto noop = [](const TierContext& /*context*/) {
         return TierOutcome{};

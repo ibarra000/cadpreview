@@ -36,6 +36,7 @@ enum class Parts : std::uint8_t { Header, HeaderAndThumbnail, Everything };
 /// The parts of a DXF file cadpreview uses. Views point into the input bytes, which must
 /// outlive the document. Layer and block names are stored upper-case (DXF compares them
 /// case-insensitively).
+// NOLINTNEXTLINE(bugprone-exception-escape): MSVC's unordered_map move is not noexcept
 struct Document {
     std::string version; ///< $ACADVER, e.g. "AC1032"; empty if absent
     std::vector<std::byte> thumbnail;
@@ -47,9 +48,9 @@ struct Document {
 
 /// Limits that bound memory and time on hostile input.
 struct ReadLimits {
-    std::size_t maxGroups = 30'000'000;
+    std::size_t maxGroups = 16'000'000; ///< about 400 MB of group views at most
     std::size_t maxEntities = 1'000'000;
-    std::size_t maxThumbnailBytes = 16 * 1024 * 1024;
+    std::size_t maxThumbnailBytes = std::size_t{16} * 1024 * 1024;
 };
 
 /// Reads an ASCII DXF file. Throws FormatError when it is malformed or exceeds the limits.

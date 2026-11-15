@@ -1,9 +1,11 @@
 #include "render/vector/geometry.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <span>
 
 namespace cadpreview {
 
@@ -14,14 +16,23 @@ constexpr int SEGMENTS_PER_TURN = 72;
 constexpr int SPLINE_SAMPLES_PER_SPAN = 8;
 constexpr int MAX_SPLINE_SAMPLES = 4096;
 constexpr double EPSILON = 1e-9;
+// CAD splines are almost always degree 2 or 3; de Boor costs degree^2 per sample, so higher
+// degrees than this are drawn as their control polygon.
+constexpr int MAX_SPLINE_DEGREE = 25;
 
 int segmentsFor(double sweep) {
+    if (!std::isfinite(sweep)) {
+        return SEGMENTS_PER_TURN;
+    }
     return std::clamp(static_cast<int>(std::ceil(std::abs(sweep) / TAU * SEGMENTS_PER_TURN)), 2,
                       SEGMENTS_PER_TURN);
 }
 
 double positiveSweep(double start, double end) {
     double sweep = std::fmod(end - start, TAU);
+    if (!std::isfinite(sweep)) {
+        return TAU; // the difference of two huge parameters overflowed
+    }
     if (sweep <= 0) {
         sweep += TAU;
     }
@@ -114,11 +125,12 @@ Point deBoor(int degree, std::span<const double> knots, std::span<const Point> c
         double y;
         double w;
     };
-    std::vector<Homogeneous> d;
-    for (std::size_t j = 0; j <= static_cast<std::size_t>(degree); ++j) {
+    std::array<Homogeneous, MAX_SPLINE_DEGREE + 1> storage{};
+    const std::span<Homogeneous> d(storage.data(), static_cast<std::size_t>(degree) + 1);
+    for (std::size_t j = 0; j < d.size(); ++j) {
         const std::size_t index = span - static_cast<std::size_t>(degree) + j;
         const double w = weights.size() == controls.size() ? weights[index] : 1.0;
-        d.push_back({controls[index].x * w, controls[index].y * w, w});
+        d[j] = {controls[index].x * w, controls[index].y * w, w};
     }
     for (int r = 1; r <= degree; ++r) {
         for (int j = degree; j >= r; --j) {
@@ -144,8 +156,9 @@ Point deBoor(int degree, std::span<const double> knots, std::span<const Point> c
 
 std::vector<Point> splinePoints(int degree, std::span<const double> knots,
                                 std::span<const Point> controls, std::span<const double> weights) {
-    const std::vector<Point> polygon(controls.begin(), controls.end());
-    if (degree < 1 || controls.size() <= static_cast<std::size_t>(degree) ||
+    std::vector<Point> polygon(controls.begin(), controls.end());
+    if (degree < 1 || degree > MAX_SPLINE_DEGREE ||
+        controls.size() <= static_cast<std::size_t>(degree) ||
         knots.size() != controls.size() + static_cast<std::size_t>(degree) + 1 ||
         !std::ranges::is_sorted(knots)) {
         return polygon;

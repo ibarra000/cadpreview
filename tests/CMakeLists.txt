@@ -38,6 +38,7 @@ add_executable(cadpreview_unit_tests
     unit/compose_test.cpp
     unit/decode_test.cpp
     unit/detect_test.cpp
+    unit/dwg_test.cpp
     unit/dxf_test.cpp
     unit/geometry_test.cpp
     unit/ladder_test.cpp

@@ -8,6 +8,7 @@ add_library(cadpreview_core STATIC
     common/utf8.cpp
     containers/source.cpp
     formats/detect.cpp
+    formats/dwg/preview.cpp
     formats/dxf/document.cpp
     formats/dxf/entities.cpp
     formats/dxf/text.cpp
@@ -23,12 +24,20 @@ add_library(cadpreview_core STATIC
     render/vector/cairo_renderer.cpp
     render/vector/drawing.cpp
     render/vector/geometry.cpp
+    tiers/dwg_tiers.cpp
     tiers/dxf_tiers.cpp
     tiers/ladder.cpp
     tiers/pipeline.cpp
     tiers/placeholder.cpp)
 target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(cadpreview_core PRIVATE PNG::PNG cadpreview_cairo)
+if(CADPREVIEW_WITH_DWG)
+    message(WARNING "CADPREVIEW_WITH_DWG links LibreDWG: the resulting binaries are GPL-3.0-or-later.")
+    find_package(unofficial-libredwg CONFIG REQUIRED)
+    target_sources(cadpreview_core PRIVATE formats/dwg/libredwg_reader.cpp)
+    target_link_libraries(cadpreview_core PRIVATE unofficial::libredwg::libredwg)
+    target_compile_definitions(cadpreview_core PRIVATE CADPREVIEW_WITH_DWG)
+endif()
 cadpreview_embed_file(cadpreview_core
     ${PROJECT_SOURCE_DIR}/resources/fonts/NotoSans-CadPreview.ttf embeddedFont)
 set_target_properties(cadpreview_core PROPERTIES

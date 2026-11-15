@@ -73,6 +73,15 @@
       }
     },
     {
+      "name": "win-release-dwg",
+      "displayName": "Windows x64 Release with LibreDWG (GPL build)",
+      "inherits": "win-release",
+      "cacheVariables": {
+        "CADPREVIEW_WITH_DWG": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;dwg"
+      }
+    },
+    {
       "name": "linux-base",
       "hidden": true,
       "inherits": "base",
@@ -134,6 +143,16 @@
       }
     },
     {
+      "name": "linux-debug-dwg",
+      "displayName": "Linux Debug with LibreDWG (GPL build)",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "CADPREVIEW_WITH_DWG": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;dwg",
+        "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF"
+      }
+    },
+    {
       "name": "linux-fuzz",
       "displayName": "Linux libFuzzer (Clang)",
       "inherits": "linux-base",
@@ -191,8 +210,19 @@
       "configurePreset": "linux-fuzz",
       "targets": [
         "fuzz_render",
-        "fuzz_c_api"
+        "fuzz_c_api",
+        "fuzz_dxf",
+        "fuzz_dwg_preview",
+        "fuzz_image_decode"
       ]
+    },
+    {
+      "name": "win-release-dwg",
+      "configurePreset": "win-release-dwg"
+    },
+    {
+      "name": "linux-debug-dwg",
+      "configurePreset": "linux-debug-dwg"
     }
   ],
   "testPresets": [
@@ -258,6 +288,16 @@
       "name": "linux-clang",
       "inherits": "test-base",
       "configurePreset": "linux-clang"
+    },
+    {
+      "name": "win-release-dwg",
+      "inherits": "test-base",
+      "configurePreset": "win-release-dwg"
+    },
+    {
+      "name": "linux-debug-dwg",
+      "inherits": "test-base",
+      "configurePreset": "linux-debug-dwg"
     }
   ],
   "workflowPresets": [
@@ -424,6 +464,40 @@
         {
           "type": "build",
           "name": "linux-fuzz"
+        }
+      ]
+    },
+    {
+      "name": "win-release-dwg",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-release-dwg"
+        },
+        {
+          "type": "build",
+          "name": "win-release-dwg"
+        },
+        {
+          "type": "test",
+          "name": "win-release-dwg"
+        }
+      ]
+    },
+    {
+      "name": "linux-debug-dwg",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-debug-dwg"
+        },
+        {
+          "type": "build",
+          "name": "linux-debug-dwg"
+        },
+        {
+          "type": "test",
+          "name": "linux-debug-dwg"
         }
       ]
     }

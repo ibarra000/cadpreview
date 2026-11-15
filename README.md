@@ -5,9 +5,21 @@ preview. It is written in C++20 behind a small, stable C API, with a thin .NET w
 thin command-line tool on top. Windows (MSVC) is the primary platform; the code also builds and
 is tested on Linux.
 
-> **Status: milestone 1 (skeleton).** Every input currently produces a neutral placeholder
-> image that names the detected format and the reason. Format support arrives milestone by
-> milestone; see [Roadmap](#roadmap).
+> **Status: milestone 2.** Reads DWG and DXF files. Other formats produce a neutral placeholder
+> that names the detected format and the reason. See [Roadmap](#roadmap).
+
+## Supported formats
+
+| Format | Tier 1 (embedded preview) | Tier 4 (2D vector) |
+|---|---|---|
+| DWG (R13 and later; checked on AC1021, AC1024) | yes | GPL build only (`CADPREVIEW_WITH_DWG=ON`, LibreDWG) |
+| DXF (ASCII) | yes (THUMBNAILIMAGE) | yes |
+| DXF (binary) | detected, not read yet | detected, not read yet |
+
+The default build and the `CadPreview` NuGet package are Apache-2.0. Building with
+`CADPREVIEW_WITH_DWG=ON` (presets `win-release-dwg`, `linux-debug-dwg`) links LibreDWG and
+makes the resulting binaries GPL-3.0-or-later. In the default build, DWG tier 4 is reported as
+unavailable, with a warning on the preview.
 
 ## How it renders
 
@@ -134,8 +146,8 @@ python tools/nuget.py smoke --version 0.1.0-local
 
 ## Roadmap
 
-1. Package skeleton, public API, CLI, CI, placeholder output, corpus manifest *(this release)*
-2. DWG/DXF: embedded preview, then vector rendering
+1. Package skeleton, public API, CLI, CI, placeholder output, corpus manifest *(0.1)*
+2. DWG/DXF: embedded preview, then vector rendering *(0.2)*
 3. Will read SolidWorks files: embedded preview
 4. Will read Inventor and Fusion 360 files: embedded preview
 5. Will read Siemens NX files: embedded preview

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <format>
 #include <numbers>
 #include <optional>
@@ -18,13 +19,59 @@ namespace cadpreview::dxf {
 namespace {
 
 constexpr double DEGREES = std::numbers::pi / 180.0;
-constexpr double MTEXT_LINE_SPACING = 5.0 / 3.0; // AutoCAD's default spacing factor
-constexpr long long CLOSED = 1;                  // group 70 bit on polylines and splines
-constexpr long long POLYLINE_MESH = 16 | 64;     // 3D mesh or polyface: not drawn
-constexpr long long SPLINE_FRAME_VERTEX = 16;
+constexpr double MTEXT_LINE_SPACING = 5.0 / 3.0;   // AutoCAD's default spacing factor
+constexpr std::uint64_t CLOSED = 1U;               // group 70 bit on polylines and splines
+constexpr std::uint64_t POLYLINE_MESH = 16U | 64U; // 3D mesh or polyface: not drawn
+constexpr std::uint64_t SPLINE_FRAME_VERTEX = 16U;
 constexpr int PAPER_SPACE = 1; // group 67
 
 enum class Space : std::uint8_t { Model, Paper };
+
+// True when any of `bits` is set in a group 70 style flag value.
+bool hasBits(long long flags, std::uint64_t bits) {
+    return (static_cast<std::uint64_t>(flags) & bits) != 0;
+}
+
+// TEXT alignment from groups 72 (horizontal) and 73 (vertical); see notes/dxf.md#text-alignment.
+HAlign textHAlign(long long horizontal) {
+    switch (horizontal) {
+    case 1:
+    case 4:
+        return HAlign::Center;
+    case 2:
+        return HAlign::Right;
+    default:
+        return HAlign::Left;
+    }
+}
+
+VAlign textVAlign(long long horizontal, long long vertical) {
+    if (horizontal == 4) {
+        return VAlign::Middle;
+    }
+    switch (vertical) {
+    case 1:
+        return VAlign::Bottom;
+    case 2:
+        return VAlign::Middle;
+    case 3:
+        return VAlign::Top;
+    default:
+        return VAlign::Baseline;
+    }
+}
+
+// MTEXT attachment column (0 left, 1 centre, 2 right).
+HAlign mtextHAlign(long long column) {
+    switch (column) {
+    case 0:
+        return HAlign::Left;
+    case 1:
+        return HAlign::Center;
+    default:
+        return HAlign::Right;
+    }
+}
 
 Point pointOf(const Record& record, int xCode) {
     return {record.number(xCode, 0), record.number(xCode + 10, 0)};
@@ -71,12 +118,12 @@ std::vector<double> allNumbers(const Record& record, int code) {
 class Converter {
 public:
     Converter(const Document& document, const ConvertLimits& limits)
-        : document_(document), limits_(limits) {}
+        : document_(&document), limits_(limits) {}
 
     Drawing run() {
-        convertList(document_.entities, Transform{}, 0, Space::Model);
+        convertList(document_->entities, Transform{}, 0, Space::Model);
         if (drawing_.primitiveCount() == 0) {
-            convertList(document_.entities, Transform{}, 0, Space::Paper);
+            convertList(document_->entities, Transform{}, 0, Space::Paper);
         }
         return std::move(drawing_);
     }
@@ -100,17 +147,17 @@ private:
     void addArc(const Arc& arc, const Transform& t);
     void addText(TextItem item, const Transform& t);
 
-    const Document& document_;
-    const ConvertLimits& limits_;
+    const Document* document_; // never null; a pointer keeps the class assignable
+    ConvertLimits limits_;
     Drawing drawing_;
-    std::size_t primitives_ = 0;
+    std::size_t work_ = 0;
 };
 
 void Converter::charge(std::size_t count) {
-    primitives_ += count;
-    if (primitives_ > limits_.maxPrimitives) {
-        throw FormatError(std::format("drawing exceeds {} primitives", limits_.maxPrimitives));
+    if (count > limits_.maxWork - work_) {
+        throw FormatError(std::format("drawing needs more than {} work units", limits_.maxWork));
     }
+    work_ += count;
 }
 
 bool Converter::visible(const Record& record) const {
@@ -118,14 +165,14 @@ bool Converter::visible(const Record& record) const {
         return false;
     }
     const auto layer = record.text(8);
-    return !layer || !document_.hiddenLayers.contains(upperCase(*layer));
+    return !layer || !document_->hiddenLayers.contains(upperCase(*layer));
 }
 
 void Converter::addPolyline(std::vector<Point> points, bool closed, const Transform& t) {
+    charge(points.size());
     if (points.size() < 2) {
         return;
     }
-    charge(1);
     for (Point& p : points) {
         p = t.apply(p);
     }
@@ -144,19 +191,21 @@ void Converter::addArc(const Arc& arc, const Transform& t) {
 }
 
 void Converter::addText(TextItem item, const Transform& t) {
+    charge(1 + (item.text.size() / TEXT_BYTES_PER_WORK));
     if (item.text.empty()) {
         return;
     }
-    charge(1);
     item.position = t.apply(item.position);
     item.height *= t.uniformScale();
     item.rotation += t.rotation();
     drawing_.texts.push_back(std::move(item));
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): block nesting is bounded by limits_.maxBlockDepth
 void Converter::convertList(const std::vector<Record>& records, const Transform& t, int depth,
                             std::optional<Space> space) {
     for (std::size_t i = 0; i < records.size(); ++i) {
+        charge(1);
         const Record& record = records[i];
         if (space) {
             const bool paper = record.integer(67, 0) == PAPER_SPACE;
@@ -172,6 +221,7 @@ void Converter::convertList(const std::vector<Record>& records, const Transform&
     }
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): block nesting is bounded by limits_.maxBlockDepth
 void Converter::convert(const Record& r, const Transform& t, int depth) {
     const std::string_view type = r.type;
     if (type == "LINE") {
@@ -214,7 +264,7 @@ void Converter::polylineWithVertices(const std::vector<Record>& records, std::si
     std::vector<double> bulges;
     while (index + 1 < records.size() && records[index + 1].type == "VERTEX") {
         const Record& vertex = records[++index];
-        if ((vertex.integer(70, 0) & SPLINE_FRAME_VERTEX) == 0) {
+        if (!hasBits(vertex.integer(70, 0), SPLINE_FRAME_VERTEX)) {
             points.push_back(pointOf(vertex, 10));
             bulges.push_back(vertex.number(42, 0));
         }
@@ -223,10 +273,10 @@ void Converter::polylineWithVertices(const std::vector<Record>& records, std::si
         ++index;
     }
     const long long flags = head.integer(70, 0);
-    if ((flags & POLYLINE_MESH) != 0 || !visible(head) || points.empty()) {
+    if (hasBits(flags, POLYLINE_MESH) || !visible(head) || points.empty()) {
         return;
     }
-    const bool closed = (flags & CLOSED) != 0;
+    const bool closed = hasBits(flags, CLOSED);
     addPolyline(bulgePath(points, bulges, closed), closed, t);
 }
 
@@ -243,13 +293,13 @@ void Converter::lwpolyline(const Record& r, const Transform& t) {
             bulges.back() = toDouble(group.value).value_or(0);
         }
     }
-    const bool closed = (r.integer(70, 0) & CLOSED) != 0;
+    const bool closed = hasBits(r.integer(70, 0), CLOSED);
     addPolyline(bulgePath(points, bulges, closed), closed, t);
 }
 
 void Converter::spline(const Record& r, const Transform& t) {
     const auto controls = allPoints(r, 10);
-    const bool closed = (r.integer(70, 0) & CLOSED) != 0;
+    const bool closed = hasBits(r.integer(70, 0), CLOSED);
     if (controls.size() >= 2) {
         const auto degree = static_cast<int>(r.integer(71, 3));
         addPolyline(splinePoints(degree, allNumbers(r, 40), controls, allNumbers(r, 41)), closed,
@@ -269,14 +319,8 @@ void Converter::text(const Record& r, const Transform& t) {
     item.rotation = r.number(50, 0) * DEGREES;
     item.widthFactor = r.number(41, 1);
     item.position = (horizontal != 0 || vertical != 0) ? pointOf(r, 11) : pointOf(r, 10);
-    item.hAlign = horizontal == 1 || horizontal == 4 ? HAlign::Center
-                  : horizontal == 2                  ? HAlign::Right
-                                                     : HAlign::Left;
-    item.vAlign = horizontal == 4 ? VAlign::Middle
-                  : vertical == 1 ? VAlign::Bottom
-                  : vertical == 2 ? VAlign::Middle
-                  : vertical == 3 ? VAlign::Top
-                                  : VAlign::Baseline;
+    item.hAlign = textHAlign(horizontal);
+    item.vAlign = textVAlign(horizontal, vertical);
     addText(std::move(item), t);
 }
 
@@ -289,6 +333,7 @@ void Converter::mtext(const Record& r, const Transform& t) {
         }
     }
     raw.append(r.text(1).value_or(""));
+    charge(raw.size() / TEXT_BYTES_PER_WORK);
     const std::string content = plainText(raw, true);
     const double height = r.number(40, 1);
     const double rotation =
@@ -304,7 +349,7 @@ void Converter::mtext(const Record& r, const Transform& t) {
     }
     const double spacing = height * MTEXT_LINE_SPACING;
     const double blockHeight = static_cast<double>(lines.size() - 1) * spacing + height;
-    const double shift = row == 0 ? 0 : row == 1 ? blockHeight / 2 : blockHeight;
+    const double shift = static_cast<double>(row) * blockHeight / 2;
     const Point origin = pointOf(r, 10);
     for (std::size_t i = 0; i < lines.size(); ++i) {
         const double offset = shift - height - static_cast<double>(i) * spacing;
@@ -314,24 +359,26 @@ void Converter::mtext(const Record& r, const Transform& t) {
         item.rotation = rotation;
         item.position = {origin.x - std::sin(rotation) * offset,
                          origin.y + std::cos(rotation) * offset};
-        item.hAlign = column == 0 ? HAlign::Left : column == 1 ? HAlign::Center : HAlign::Right;
+        item.hAlign = mtextHAlign(column);
         addText(std::move(item), t);
     }
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): block nesting is bounded by limits_.maxBlockDepth
 void Converter::insert(const Record& r, const Transform& t, int depth) {
-    const auto found = document_.blocks.find(upperCase(r.text(2).value_or("")));
-    if (found == document_.blocks.end()) {
+    const auto found = document_->blocks.find(upperCase(r.text(2).value_or("")));
+    if (found == document_->blocks.end()) {
         return;
     }
     const Point insertion = pointOf(r, 10);
     const double rotation = r.number(50, 0) * DEGREES;
     const auto columns = std::max<long long>(1, r.integer(70, 1));
     const auto rows = std::max<long long>(1, r.integer(71, 1));
-    const auto copies = static_cast<std::size_t>(columns) * static_cast<std::size_t>(rows);
-    if (copies > limits_.maxPrimitives) {
+    const auto budget = static_cast<long long>(limits_.maxWork);
+    if (columns > budget || rows > budget / columns) {
         throw FormatError("block array is too large");
     }
+    charge(static_cast<std::size_t>(columns * rows));
     const double columnSpacing = r.number(44, 0);
     const double rowSpacing = r.number(45, 0);
     for (long long row = 0; row < rows; ++row) {
@@ -347,12 +394,13 @@ void Converter::insert(const Record& r, const Transform& t, int depth) {
     }
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): block nesting is bounded by limits_.maxBlockDepth
 void Converter::drawBlock(std::string_view name, const Transform& t, int depth) {
     if (depth + 1 > limits_.maxBlockDepth) {
         throw FormatError("blocks are nested too deeply");
     }
-    const auto found = document_.blocks.find(upperCase(name));
-    if (found != document_.blocks.end()) {
+    const auto found = document_->blocks.find(upperCase(name));
+    if (found != document_->blocks.end()) {
         convertList(found->second.entities, t, depth + 1, std::nullopt);
     }
 }
