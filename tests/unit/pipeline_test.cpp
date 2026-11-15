@@ -14,7 +14,7 @@
 namespace cadpreview {
 namespace {
 
-Preview renderBytes(const std::vector<std::byte>& bytes, RenderOptions options = {}) {
+Preview renderBytes(const std::vector<std::byte>& bytes, const RenderOptions& options = {}) {
     return renderMemory(bytes, options, defaultRegistry(), Logger{});
 }
 
