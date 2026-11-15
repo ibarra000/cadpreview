@@ -1,0 +1,206 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  PYTHON_VERSION: "3.12"
+  VCPKG_DISABLE_METRICS: "1"
+
+jobs:
+  windows:
+    name: windows-${{ matrix.arch }}
+    timeout-minutes: 90
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-2025, preset: win-release, rid: win-x64 }
+          - { arch: arm64, runner: windows-11-arm, preset: win-arm64-release, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Python dev environment
+        run: |
+          python -m venv .venv
+          .venv/Scripts/python -m pip install --quiet -r requirements-test.txt
+      - uses: ./.github/actions/msvc-env
+        with:
+          arch: ${{ matrix.arch }}
+      - name: Build and test (${{ matrix.preset }})
+        run: cmake --workflow --preset ${{ matrix.preset }}
+      - name: Build and test under AddressSanitizer
+        if: matrix.arch == 'x64'
+        run: cmake --workflow --preset win-asan
+      - name: Stage the install tree
+        run: cmake --install build/${{ matrix.preset }} --prefix stage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stage-${{ matrix.rid }}
+          path: stage
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: linux-${{ matrix.preset }}
+    timeout-minutes: 60
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [linux-debug, linux-clang, linux-asan, linux-tsan, linux-coverage]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q ninja-build cppcheck
+      - name: Python dev environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --quiet -r requirements-dev.txt
+      - name: Build and test (${{ matrix.preset }})
+        run: cmake --workflow --preset ${{ matrix.preset }}
+      - name: Coverage gate (80% of lines)
+        if: matrix.preset == 'linux-coverage'
+        run: >
+          .venv/bin/gcovr --root . --object-directory build/linux-coverage
+          --filter src/ --filter cli/ --exclude-unreachable-branches
+          --print-summary --fail-under-line 80
+      - name: clang-tidy
+        if: matrix.preset == 'linux-debug'
+        run: .venv/bin/python tools/clang_tidy.py --build-dir build/linux-debug
+      - name: cppcheck
+        if: matrix.preset == 'linux-debug'
+        run: >
+          cppcheck --project=build/linux-debug/compile_commands.json --std=c++20
+          --enable=warning,performance,portability --inline-suppr --error-exitcode=1
+          --suppress=missingIncludeSystem -i external -i build/linux-debug/vcpkg_installed
+
+  fuzz:
+    timeout-minutes: 30
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q ninja-build
+      - name: Build fuzzers
+        run: cmake --workflow --preset linux-fuzz
+      - name: Fuzz each harness for 60 s
+        run: |
+          for harness in fuzz_render fuzz_c_api; do
+            mkdir -p "fuzz-work/$harness"
+            "build/linux-fuzz/bin/$harness" -max_total_time=60 -rss_limit_mb=2048 \
+              -artifact_prefix=fuzz-work/ "fuzz-work/$harness" corpus/synthetic
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: fuzz-work/crash-*
+
+  lint:
+    timeout-minutes: 20
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: vcpkg submodule matches the builtin-baseline
+        run: |
+          pinned=$(git ls-tree HEAD external/vcpkg | awk '{print $3}')
+          baseline=$(python -c "import json; print(json.load(open('vcpkg.json'))['builtin-baseline'])")
+          echo "submodule $pinned, baseline $baseline"
+          test "$pinned" = "$baseline"
+      - name: pre-commit
+        run: |
+          python -m pip install --quiet -r requirements-dev.txt
+          pre-commit run --all-files --show-diff-on-failure
+
+  package:
+    needs: windows
+    timeout-minutes: 30
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: stage-*
+      - name: Pack
+        run: >
+          python tools/nuget.py pack --stage win-x64=stage-win-x64 --stage win-arm64=stage-win-arm64
+          --version-suffix ci.${{ github.run_number }} --output nuget
+      - name: Smoke test in a fresh console app (x64)
+        run: python tools/nuget.py smoke --feed nuget
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nuget
+          path: nuget/*.nupkg
+          if-no-files-found: error
+          retention-days: 7
+
+  package-smoke-arm64:
+    needs: package
+    timeout-minutes: 20
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nuget
+          path: nuget
+      - name: Smoke test in a fresh console app (arm64)
+        run: python tools/nuget.py smoke --feed nuget

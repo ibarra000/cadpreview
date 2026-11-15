@@ -1,0 +1,29 @@
+name: MSVC developer environment
+description: >
+  Enters the Visual Studio developer environment (cl, link, rc, CMake, Ninja) and exports it to
+  later steps, replacing third-party actions that are no longer maintained.
+inputs:
+  arch:
+    description: Target and host architecture, x64 or arm64.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Enter Visual Studio developer environment
+      shell: pwsh
+      env:
+        TARGET_ARCH: ${{ inputs.arch }}
+      run: |
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installation = & $vswhere -latest -products * -property installationPath
+        if (-not $installation) { throw "Visual Studio not found" }
+        $before = @{}
+        Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+        Import-Module (Join-Path $installation "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+        Enter-VsDevShell -VsInstallPath $installation -SkipAutomaticLocation `
+          -DevCmdArguments "-arch=$env:TARGET_ARCH -host_arch=$env:TARGET_ARCH -no_logo"
+        Get-ChildItem env: |
+          Where-Object { $before[$_.Name] -ne $_.Value } |
+          ForEach-Object { "$($_.Name)=$($_.Value)" } |
+          Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "Visual Studio: $installation ($env:TARGET_ARCH)"

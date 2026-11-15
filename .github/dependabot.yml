@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/msvc-env"]
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /bindings/dotnet
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
