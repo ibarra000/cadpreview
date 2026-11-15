@@ -8,16 +8,29 @@ add_library(cadpreview_core STATIC
     common/utf8.cpp
     containers/source.cpp
     formats/detect.cpp
+    formats/dxf/document.cpp
+    formats/dxf/entities.cpp
+    formats/dxf/text.cpp
+    formats/dxf/tokenizer.cpp
     formats/format.cpp
+    render/compose.cpp
+    render/decode/dib.cpp
+    render/decode/png_decode.cpp
     render/font5x7.cpp
     render/image.cpp
     render/png.cpp
     render/text.cpp
+    render/vector/cairo_renderer.cpp
+    render/vector/drawing.cpp
+    render/vector/geometry.cpp
+    tiers/dxf_tiers.cpp
     tiers/ladder.cpp
     tiers/pipeline.cpp
     tiers/placeholder.cpp)
 target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(cadpreview_core PRIVATE PNG::PNG)
+target_link_libraries(cadpreview_core PRIVATE PNG::PNG cadpreview_cairo)
+cadpreview_embed_file(cadpreview_core
+    ${PROJECT_SOURCE_DIR}/resources/fonts/NotoSans-CadPreview.ttf embeddedFont)
 set_target_properties(cadpreview_core PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON

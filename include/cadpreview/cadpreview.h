@@ -58,7 +58,9 @@ enum {
 /// Detected file format. Values are only ever appended, never renumbered.
 typedef int32_t cp_format;
 enum {
-    CP_FORMAT_UNKNOWN = 0 ///< Not a supported format.
+    CP_FORMAT_UNKNOWN = 0, ///< Not a supported format.
+    CP_FORMAT_DWG = 1,     ///< AutoCAD DWG drawing.
+    CP_FORMAT_DXF = 2      ///< AutoCAD DXF drawing (ASCII or binary).
 };
 
 /// Why a preview is a placeholder. Values are only ever appended, never renumbered.

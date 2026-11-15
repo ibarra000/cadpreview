@@ -36,6 +36,8 @@ include(cmake/CompilerOptions.cmake)
 include(cmake/Sanitizers.cmake)
 
 find_package(PNG REQUIRED)
+include(cmake/Cairo.cmake)
+include(cmake/EmbedFile.cmake)
 
 add_subdirectory(src)
 

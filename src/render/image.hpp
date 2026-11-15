@@ -23,10 +23,15 @@ class Image {
 public:
     Image(std::uint32_t width, std::uint32_t height, Rgba fill);
 
+    /// Wraps an RGBA buffer of exactly width * height * 4 bytes.
+    [[nodiscard]] static Image fromRgba(std::uint32_t width, std::uint32_t height,
+                                        std::vector<std::uint8_t> rgba);
+
     [[nodiscard]] std::uint32_t width() const noexcept { return width_; }
     [[nodiscard]] std::uint32_t height() const noexcept { return height_; }
     [[nodiscard]] std::span<const std::uint8_t> pixels() const noexcept { return rgba_; }
     [[nodiscard]] Rgba pixel(std::uint32_t x, std::uint32_t y) const;
+    void setPixel(std::uint32_t x, std::uint32_t y, Rgba color);
 
     /// Fills the rectangle, clipped to the image; any part outside is ignored.
     void fillRect(std::int64_t x, std::int64_t y, std::int64_t width, std::int64_t height,

@@ -5,13 +5,30 @@
   "license": "Apache-2.0",
   "builtin-baseline": "9eec002df1cd109f8f104cd966a763daf9751489",
   "dependencies": [
-    "libpng"
+    "libpng",
+    {
+      "name": "cairo",
+      "default-features": false,
+      "features": [
+        "freetype"
+      ]
+    },
+    {
+      "name": "freetype",
+      "default-features": false
+    }
   ],
   "features": {
     "tests": {
       "description": "Build the C++ test suites",
       "dependencies": [
         "gtest"
+      ]
+    },
+    "dwg": {
+      "description": "DWG vector rendering through LibreDWG (makes the build GPL-3.0-or-later)",
+      "dependencies": [
+        "libredwg"
       ]
     }
   }

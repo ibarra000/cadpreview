@@ -54,6 +54,14 @@ struct FileOpenResult {
 /// Opens a regular file for reading.
 [[nodiscard]] FileOpenResult openFile(const std::filesystem::path& path);
 
+/// Largest input a format reader loads into memory at once.
+inline constexpr std::uint64_t MAX_IN_MEMORY_INPUT = 256ULL * 1024 * 1024;
+
+/// Reads the whole source into memory. Throws FormatError when it exceeds maxBytes or cannot be
+/// read.
+[[nodiscard]] std::vector<std::byte> readAll(Source& source,
+                                             std::uint64_t maxBytes = MAX_IN_MEMORY_INPUT);
+
 /// Reads the first min(maxBytes, size) bytes; nullopt on an I/O error.
 [[nodiscard]] std::optional<std::vector<std::byte>> readPrefix(Source& source,
                                                                std::size_t maxBytes);

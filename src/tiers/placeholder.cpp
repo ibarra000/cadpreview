@@ -1,5 +1,6 @@
 #include "tiers/placeholder.hpp"
 
+#include "render/compose.hpp"
 #include "render/text.hpp"
 
 #include <algorithm>
@@ -29,7 +30,7 @@ struct Layout {
 
 Layout layoutFor(int size) {
     Layout layout;
-    layout.margin = std::max(1, (size * 5 + 50) / 100);
+    layout.margin = canvasMargin(static_cast<std::uint32_t>(size));
     layout.frame = std::max(1, size / 256);
     layout.padding = std::max(1, size / 32);
     layout.titleScale = std::max(1, size / 128);

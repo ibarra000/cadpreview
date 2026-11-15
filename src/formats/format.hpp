@@ -6,7 +6,7 @@
 namespace cadpreview {
 
 /// Detected file format. Values match the public CP_FORMAT_* constants.
-enum class Format : std::int32_t { Unknown = 0 };
+enum class Format : std::int32_t { Unknown = 0, Dwg = 1, Dxf = 2 };
 
 /// Stable short id used in the API and logs, e.g. "unknown".
 [[nodiscard]] std::string_view formatId(Format format) noexcept;

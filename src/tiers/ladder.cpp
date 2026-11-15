@@ -2,6 +2,7 @@
 
 #include "common/errors.hpp"
 #include "render/png.hpp"
+#include "tiers/builtin_tiers.hpp"
 #include "tiers/placeholder.hpp"
 
 #include <algorithm>
@@ -145,7 +146,7 @@ const TierEntry* TierRegistry::find(Format format, Tier tier) const {
 }
 
 const TierRegistry& defaultRegistry() {
-    static const TierRegistry DEFAULT_REGISTRY;
+    static const TierRegistry DEFAULT_REGISTRY(dxfTiers());
     return DEFAULT_REGISTRY;
 }
 

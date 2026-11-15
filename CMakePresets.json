@@ -17,7 +17,8 @@
         "CMAKE_COMPILE_WARNING_AS_ERROR": "ON",
         "CMAKE_LINK_WARNING_AS_ERROR": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
-        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_OVERLAY_PORTS": "${sourceDir}/ports"
       }
     },
     {

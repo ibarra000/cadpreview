@@ -1,5 +1,7 @@
 #include "containers/source.hpp"
 
+#include "common/errors.hpp"
+
 #include <algorithm>
 #include <fstream>
 #include <limits>
@@ -64,6 +66,17 @@ FileOpenResult openFile(const std::filesystem::path& path) {
         return {nullptr, "cannot open file"};
     }
     return {std::make_unique<FileSource>(std::move(stream), size), {}};
+}
+
+std::vector<std::byte> readAll(Source& source, std::uint64_t maxBytes) {
+    if (source.size() > maxBytes) {
+        throw FormatError("file too large to read into memory");
+    }
+    std::vector<std::byte> bytes(static_cast<std::size_t>(source.size()));
+    if (!source.readAt(0, bytes)) {
+        throw FormatError("read error");
+    }
+    return bytes;
 }
 
 std::optional<std::vector<std::byte>> readPrefix(Source& source, std::size_t maxBytes) {

@@ -13,8 +13,10 @@ struct FormatNames {
 };
 
 // One row per format; the first row is the fallback for values this version does not know.
-constexpr std::array<FormatNames, 1> FORMATS{{
+constexpr std::array<FormatNames, 3> FORMATS{{
     {Format::Unknown, "unknown", "Unknown format"},
+    {Format::Dwg, "dwg", "DWG drawing"},
+    {Format::Dxf, "dxf", "DXF drawing"},
 }};
 
 const FormatNames& namesOf(Format format) noexcept {

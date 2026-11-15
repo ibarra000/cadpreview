@@ -30,6 +30,8 @@ using cadpreview::Tier;
 static_assert(static_cast<int>(Tier::Placeholder) == CP_TIER_PLACEHOLDER);
 static_assert(static_cast<int>(Tier::Vector) == CP_TIER_VECTOR);
 static_assert(static_cast<int>(Format::Unknown) == CP_FORMAT_UNKNOWN);
+static_assert(static_cast<int>(Format::Dwg) == CP_FORMAT_DWG);
+static_assert(static_cast<int>(Format::Dxf) == CP_FORMAT_DXF);
 static_assert(static_cast<int>(Reason::PlaceholderRequested) == CP_REASON_PLACEHOLDER_REQUESTED);
 static_assert(static_cast<int>(Reason::TiersFailed) == CP_REASON_TIERS_FAILED);
 static_assert(static_cast<int>(cadpreview::LogLevel::Error) == CP_LOG_ERROR);

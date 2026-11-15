@@ -75,9 +75,9 @@ def test_wrong_header_is_reported(tmp_path: Path) -> None:
     ("overrides", "message"),
     [
         ({"origin": "found-online"}, "origin must be one of"),
-        ({"origin": "self-made"}, "synthetic files live in synthetic/"),
+        ({"origin": "self-made"}, "self-made files live in files/"),
         ({"path": "../escape.bin"}, "must be relative"),
-        ({"path": "elsewhere/good.bin"}, "must start with files/ or synthetic/"),
+        ({"path": "elsewhere/good.bin"}, "must start with one of"),
         ({"sha256": "0" * 64}, "sha256 does not match"),
         ({"size_bytes": "999"}, "size_bytes 999 != actual"),
         ({"size_bytes": "-1"}, "non-negative integer"),
@@ -257,3 +257,72 @@ def test_main_run_fails_on_crash(tmp_path: Path) -> None:
         ["--manifest", str(manifest), "run", "--cli", str(cli), "--out", str(tmp_path / "o")]
     )
     assert code == 1
+
+
+def test_vendor_samples_may_be_absent_but_must_name_their_url(tmp_path: Path) -> None:
+    absent = row(
+        path="vendor/dwg/sample.dwg",
+        format="dwg",
+        origin="vendor-sample",
+        license="LicenseRef-Vendor-Terms",
+        source="https://example.com/samples",
+    )
+    assert corpus.validate(write_corpus(tmp_path / "a", [absent], {})) == []
+    no_url = {**absent, "source": "the vendor site"}
+    errors = corpus.validate(write_corpus(tmp_path / "b", [no_url], {}))
+    assert any("downloaded from" in e for e in errors), errors
+    misplaced = {**absent, "path": "files/dwg/sample.dwg"}
+    errors = corpus.validate(write_corpus(tmp_path / "c", [misplaced], {}))
+    assert any("vendor-sample files live in vendor/" in e for e in errors), errors
+
+
+def test_run_skips_absent_vendor_samples(tmp_path: Path) -> None:
+    absent = row(
+        path="vendor/dwg/sample.dwg",
+        format="dwg",
+        origin="vendor-sample",
+        license="LicenseRef-Vendor-Terms",
+        source="https://example.com/samples",
+    )
+    manifest = write_corpus(tmp_path / "corpus", [absent], {})
+    assert (
+        corpus.run_corpus(
+            fake_cli(tmp_path), manifest, tiers=[0], size=64, timeout=5.0, out_dir=tmp_path / "o"
+        )
+        == []
+    )
+
+
+def test_add_appends_rows_and_refuses_duplicates(tmp_path: Path) -> None:
+    manifest = write_corpus(tmp_path / "corpus", [], {"synthetic/new.dxf": b"0\nEOF\n"})
+    new = corpus.NewEntry(
+        origin="synthetic",
+        source="generated: test",
+        license="Apache-2.0",
+        contributor="tests",
+        format="dxf",
+    )
+    added = corpus.add_entries(manifest, [tmp_path / "corpus" / "synthetic" / "new.dxf"], new)
+    assert added == ["synthetic/new.dxf"]
+    assert corpus.validate(manifest) == []
+    with pytest.raises(ValueError, match="already listed"):
+        corpus.add_entries(manifest, [tmp_path / "corpus" / "synthetic" / "new.dxf"], new)
+    with pytest.raises(ValueError, match="inside"):
+        corpus.add_entries(manifest, [tmp_path / "elsewhere.dxf"], new)
+
+
+def test_add_can_ask_the_cli_for_format_and_version(tmp_path: Path) -> None:
+    script = tmp_path / "probe_cli.py"
+    script.write_text(
+        "import json, pathlib, sys\n"
+        "pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_bytes(b'png')\n"
+        "print(json.dumps({'format': 'dwg', 'version': 'AC1032'}))\n",
+        encoding="utf-8",
+    )
+    manifest = write_corpus(tmp_path / "corpus", [], {"synthetic/x.bin": b"AC1032"})
+    new = corpus.NewEntry(origin="synthetic", source="generated: test", license="Apache-2.0")
+    corpus.add_entries(
+        manifest, [tmp_path / "corpus" / "synthetic" / "x.bin"], new, [sys.executable, str(script)]
+    )
+    entries, _ = corpus.read_manifest(manifest)
+    assert (entries[0][1].format, entries[0][1].file_version) == ("dwg", "AC1032")

@@ -34,14 +34,20 @@ target_link_libraries(cadpreview_test_support PUBLIC PNG::PNG)
 cadpreview_configure_target(cadpreview_test_support)
 
 add_executable(cadpreview_unit_tests
+    unit/byte_reader_test.cpp
+    unit/compose_test.cpp
+    unit/decode_test.cpp
     unit/detect_test.cpp
+    unit/dxf_test.cpp
+    unit/geometry_test.cpp
     unit/ladder_test.cpp
     unit/log_test.cpp
     unit/pipeline_test.cpp
     unit/placeholder_test.cpp
     unit/render_test.cpp
     unit/source_test.cpp
-    unit/utf8_test.cpp)
+    unit/utf8_test.cpp
+    unit/vector_test.cpp)
 target_link_libraries(cadpreview_unit_tests PRIVATE
     cadpreview_core cadpreview_test_support GTest::gtest GTest::gtest_main)
 cadpreview_configure_target(cadpreview_unit_tests)

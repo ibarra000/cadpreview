@@ -30,6 +30,26 @@ Image::Image(std::uint32_t width, std::uint32_t height, Rgba fill)
     }
 }
 
+Image Image::fromRgba(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba) {
+    Image image(width, height, {});
+    if (rgba.size() != image.rgba_.size()) {
+        throw std::invalid_argument("pixel buffer size does not match the image");
+    }
+    image.rgba_ = std::move(rgba);
+    return image;
+}
+
+void Image::setPixel(std::uint32_t x, std::uint32_t y, Rgba color) {
+    if (x >= width_ || y >= height_) {
+        throw std::out_of_range("pixel outside image");
+    }
+    const std::size_t offset = (static_cast<std::size_t>(y) * width_ + x) * CHANNELS;
+    rgba_[offset] = color.r;
+    rgba_[offset + 1] = color.g;
+    rgba_[offset + 2] = color.b;
+    rgba_[offset + 3] = color.a;
+}
+
 Rgba Image::pixel(std::uint32_t x, std::uint32_t y) const {
     if (x >= width_ || y >= height_) {
         throw std::out_of_range("pixel outside image");
