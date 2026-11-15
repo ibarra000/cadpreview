@@ -35,6 +35,12 @@ inline struct cp_preview_info infoOf(const cp_preview* p) {
     return info;
 }
 
+/// The reason text of a preview, or "" when the info cannot be read.
+inline std::string reasonOf(const cp_preview* p) {
+    const struct cp_preview_info info = infoOf(p);
+    return info.reason != nullptr ? info.reason : "";
+}
+
 inline std::span<const std::uint8_t> pngOf(const cp_preview* p) {
     const void* data = nullptr;
     std::size_t len = 0;

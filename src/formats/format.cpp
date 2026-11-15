@@ -1,6 +1,5 @@
 #include "formats/format.hpp"
 
-#include <algorithm>
 #include <array>
 
 namespace cadpreview {
@@ -19,8 +18,12 @@ constexpr std::array<FormatNames, 1> FORMATS{{
 }};
 
 const FormatNames& namesOf(Format format) noexcept {
-    const auto match = std::ranges::find(FORMATS, format, &FormatNames::format);
-    return match != FORMATS.end() ? *match : FORMATS.front();
+    for (const FormatNames& names : FORMATS) {
+        if (names.format == format) {
+            return names;
+        }
+    }
+    return FORMATS.front();
 }
 
 } // namespace

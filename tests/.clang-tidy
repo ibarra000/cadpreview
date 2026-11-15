@@ -2,7 +2,8 @@
 InheritParentConfig: true
 # gtest assertion macros are opaque to these checks: ASSERT_TRUE(x.has_value()) guards the
 # access but the optional checker cannot see it, TEST bodies inflate complexity, and fixed seeds
-# make the randomized tests reproducible.
+# make the randomized tests reproducible. Output pointers that a call must reset to null are
+# deliberately non-const.
 Checks: >
   -bugprone-unchecked-optional-access,
   -bugprone-random-generator-seed,
@@ -11,5 +12,6 @@ Checks: >
   -readability-function-cognitive-complexity,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-owning-memory,
+  -misc-const-correctness,
   -cppcoreguidelines-non-private-member-variables-in-classes
 ...

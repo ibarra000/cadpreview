@@ -66,8 +66,7 @@ TEST(Render, CompoundFileWithoutKnownFormatIsUnknown) {
     const auto bytes = cfbSignatureFile();
     const PreviewPtr preview = renderBytes(bytes, nullptr);
     expectPlaceholder(preview.get(), CP_REASON_UNKNOWN_FORMAT, 512);
-    EXPECT_NE(std::string_view(infoOf(preview.get()).reason).find("compound"),
-              std::string_view::npos);
+    EXPECT_NE(reasonOf(preview.get()).find("compound"), std::string_view::npos);
 }
 
 TEST(Render, FileAndMemoryAgree) {
@@ -109,8 +108,7 @@ TEST(Render, ReasonTextNeverContainsThePath) {
     const std::string path = utf8(dir.path() / "secret-project-name.prt");
     const PreviewPtr preview = renderPath(path, nullptr);
     ASSERT_NE(preview, nullptr);
-    EXPECT_EQ(std::string_view(infoOf(preview.get()).reason).find("secret-project-name"),
-              std::string_view::npos);
+    EXPECT_EQ(reasonOf(preview.get()).find("secret-project-name"), std::string_view::npos);
 }
 
 struct LogCapture {
