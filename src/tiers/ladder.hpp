@@ -46,6 +46,13 @@ inline constexpr std::uint32_t MIN_SIZE = 16;
 inline constexpr std::uint32_t MAX_SIZE = 4096;
 
 struct RenderOptions {
+    RenderOptions() = default;
+    // A constructor rather than aggregate initialization, so {size, tier} stays valid as
+    // members are appended (GCC and Clang warn about omitted fields in aggregates).
+    explicit RenderOptions(std::uint32_t outputSize) : size(outputSize) {}
+    RenderOptions(std::uint32_t outputSize, Tier forcedTier, std::filesystem::path helper = {})
+        : size(outputSize), tier(forcedTier), dwgHelper(std::move(helper)) {}
+
     std::uint32_t size = DEFAULT_SIZE;
     Tier tier = Tier::Auto;
     std::filesystem::path dwgHelper; ///< empty: look for cadpreview-dwg next to the library
