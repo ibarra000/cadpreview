@@ -21,7 +21,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     std::ranges::copy(input.first(STRUCT_BYTES), optionBytes.begin());
     cp_options options{};
     std::memcpy(&options, optionBytes.data(), sizeof(options));
-    options.struct_size %= STRUCT_BYTES + 1;
+    options.struct_size %= static_cast<std::uint32_t>(STRUCT_BYTES + 1);
     options.log = nullptr; // a fuzzed function pointer would only test the caller's crash
     std::memcpy(optionBytes.data(), &options, sizeof(options));
 
@@ -34,7 +34,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     }
 
     alignas(std::uint64_t) std::array<std::uint8_t, 256> infoBytes{};
-    const std::uint32_t infoSize = input[1] % (infoBytes.size() + 1);
+    const auto infoSize = static_cast<std::uint32_t>(input[1] % (infoBytes.size() + 1));
     std::memcpy(infoBytes.data(), &infoSize, sizeof(infoSize));
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): fuzzed struct bytes
     auto* info = reinterpret_cast<struct cp_preview_info*>(infoBytes.data());
