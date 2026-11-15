@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 namespace cadpreview::test {
 namespace {
@@ -40,6 +41,21 @@ TEST(Structs, V1OptionsWithoutTheHelperPathAreAccepted) {
     ASSERT_EQ(cp_render_memory(SAMPLE.data(), SAMPLE.size(), &options, &raw), CP_OK);
     const PreviewPtr preview(raw);
     EXPECT_EQ(infoOf(preview.get()).width, 64U);
+}
+
+TEST(Structs, AFieldOnlyPartlyInsideStructSizeIsIgnored) {
+    // A size that ends inside dwg_helper_path would copy half of the pointer, giving a wild
+    // pointer. Fields not wholly inside struct_size must count as absent.
+    static constexpr std::string_view HELPER = "no-such-cadpreview-dwg";
+    cp_options options = makeOptions(64);
+    options.dwg_helper_path = HELPER.data(); // a literal, so NUL-terminated
+    for (std::uint32_t size = OPTIONS_V1_SIZE + 1; size < sizeof(cp_options); ++size) {
+        options.struct_size = size;
+        cp_preview* raw = nullptr;
+        ASSERT_EQ(cp_render_memory(SAMPLE.data(), SAMPLE.size(), &options, &raw), CP_OK) << size;
+        const PreviewPtr preview(raw);
+        EXPECT_EQ(infoOf(preview.get()).width, 64U);
+    }
 }
 
 struct NewerOptions {

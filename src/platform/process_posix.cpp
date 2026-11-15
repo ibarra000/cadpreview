@@ -19,13 +19,16 @@
 #include <utility>
 #include <vector>
 
-extern char** environ; // NOLINT(readability-redundant-declaration): POSIX declares it nowhere
+// POSIX defines environ but no header declares it; posix_spawn needs it to pass the
+// environment on.
+// NOLINTNEXTLINE(readability-redundant-declaration,cppcoreguidelines-avoid-non-const-global-variables)
+extern char** environ;
 
 namespace cadpreview {
 
 namespace {
 
-constexpr std::size_t READ_CHUNK = 64 * 1024;
+constexpr std::size_t READ_CHUNK = std::size_t{64} * 1024;
 
 [[noreturn]] void throwErrno(int error, const char* what) {
     throw std::system_error(error, std::generic_category(), what);
@@ -184,9 +187,9 @@ pid_t spawn(const std::filesystem::path& program, const std::vector<std::string>
 }
 
 struct Stream {
-    int fd;
-    std::string* into;
-    std::size_t limit;
+    int fd = -1;
+    std::string* into = nullptr; // never null once constructed by runProcess
+    std::size_t limit = 0;
     bool open = true;
 };
 

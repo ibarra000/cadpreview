@@ -47,7 +47,7 @@ constexpr int EXIT_USAGE = 2;
 constexpr int EXIT_NOT_DWG = 3;
 constexpr int EXIT_INTERNAL = 4;
 constexpr int EXIT_NO_MEMORY = 5;
-constexpr std::uintmax_t MAX_INPUT = std::uintmax_t{256} * 1024 * 1024; // as the library
+constexpr std::uintmax_t MAX_INPUT_BYTES = std::uintmax_t{256} * 1024 * 1024; // as the library
 constexpr std::uint64_t MEBIBYTE = std::uint64_t{1024} * 1024;
 
 struct Arguments {
@@ -107,7 +107,7 @@ std::filesystem::path pathOf(const std::string& utf8) {
 bool looksLikeDwg(const std::filesystem::path& path) {
     std::error_code error;
     const std::uintmax_t size = std::filesystem::file_size(path, error);
-    if (error || size > MAX_INPUT) {
+    if (error || size > MAX_INPUT_BYTES) {
         return false;
     }
     std::ifstream in(path, std::ios::binary);

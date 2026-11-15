@@ -91,6 +91,11 @@ void copyOut(T& out, std::uint32_t declared, const T& value) noexcept {
     out.struct_size = static_cast<std::uint32_t>(filled);
 }
 
+// True when a caller's declared struct size includes the whole field at offset.
+constexpr bool coversField(std::uint32_t declared, std::size_t offset, std::size_t size) noexcept {
+    return declared >= offset + size;
+}
+
 struct ParsedOptions {
     cadpreview::RenderOptions render;
     cadpreview::Logger log;
@@ -105,6 +110,12 @@ std::optional<ParsedOptions> parseOptions(const cp_options* opts) noexcept {
     if (!copyIn(*opts, OPTIONS_V1_SIZE, copy) || copy.reserved != 0 ||
         copy.tier > CP_TIER_PLACEHOLDER) {
         return std::nullopt;
+    }
+    // A size ending inside an appended field copied only part of it; for a pointer that would
+    // be a wild address, so the field counts as absent.
+    if (!coversField(copy.struct_size, offsetof(cp_options, dwg_helper_path),
+                     sizeof(copy.dwg_helper_path))) {
+        copy.dwg_helper_path = nullptr;
     }
     const std::uint32_t size = copy.size == 0 ? cadpreview::DEFAULT_SIZE : copy.size;
     if (size < cadpreview::MIN_SIZE || size > cadpreview::MAX_SIZE) {
