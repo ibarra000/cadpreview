@@ -55,3 +55,32 @@ as WMF in older ones. cadpreview accepts a type-6 entry only when its bytes star
 signature, and never decodes WMF.
 
 cadpreview picks the largest image entry. Pre-R13 files (no image seeker) are not covered.
+
+## helper-protocol
+
+**Claim:** not a format fact: this is cadpreview's own contract between the library and the
+`cadpreview-dwg` helper, which decodes DWG with LibreDWG in a separate process.
+**Status:** design (owner decision 2026-11-15: isolate LibreDWG, keep cairo away from GPL code)
+
+- The library starts `cadpreview-dwg --max-memory-mb 2048 <file>` with the file's UTF-8 path,
+  standard input from the null device, and only the two output pipes inherited
+  (`src/platform/process_*.cpp`).
+- The helper limits its own memory (Windows job object, POSIX `RLIMIT_AS`), refuses files over
+  256 MiB or without the `AC10` prefix, and writes ASCII DXF to standard output:
+  - TABLES: frozen or off layers, as `LAYER` entries with group 70 = 1;
+  - BLOCKS: block definitions;
+  - ENTITIES: model-space entities, then paper-space entities marked with group 67 = 1.
+  Layers and blocks are named by object index (`L12`, `B40`). Values never contain line
+  breaks; MTEXT is split into 250-byte group 3 chunks on UTF-8 boundaries
+  (`helpers/dwg/dxf_writer.cpp`).
+- Exit status: 0 drawing written; 2 usage; 3 not a DWG file or not decodable; 4 internal error;
+  5 out of memory.
+- The library kills the helper after 30 s or 128 MiB of output, and reads its output with the
+  ordinary DXF reader and its limits. Any failure becomes a tier-4 failure with a fixed message;
+  the helper's error output goes only to the debug log, because it can contain the path.
+- The helper is looked up at `cp_options.dwg_helper_path`, else next to the library or in
+  `../bin` relative to it. Without it, DWG tier 4 is reported as unavailable.
+
+**Evidence:** `tests/unit/process_test.cpp`, `tests/api/dwg_helper_test.cpp` (with the stand-in
+`tests/support/fake_helper.cpp`), `tests/unit/dxf_writer_test.cpp`; on the 17 vendor samples
+the helper gives the same tier-4 results as the earlier in-process build (15 of 17).

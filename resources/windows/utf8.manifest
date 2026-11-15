@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Shared by the CLI, the cadpreview-dwg helper and its test stand-in. The UTF-8 code page
+     makes argv and narrow file APIs (fopen, used by LibreDWG) accept any path; long paths are
+     allowed where the system enables them. -->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>

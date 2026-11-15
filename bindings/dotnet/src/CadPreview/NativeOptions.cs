@@ -12,4 +12,5 @@ internal unsafe struct NativeOptions
     public uint Reserved;
     public delegate* unmanaged<nint, int, byte*, void> Log;
     public nint LogUser;
+    public byte* DwgHelperPath;
 }

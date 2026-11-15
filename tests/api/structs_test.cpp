@@ -12,9 +12,13 @@ namespace {
 
 const std::array<std::uint8_t, 3> SAMPLE{1, 2, 3};
 
+// Version 1 of cp_options ends before dwg_helper_path, which version 2 (0.2.0) appended.
+constexpr std::uint32_t OPTIONS_V1_SIZE = offsetof(cp_options, dwg_helper_path);
+
 TEST(Structs, V1SizesAreFrozen) {
     if constexpr (sizeof(void*) == 8) {
-        EXPECT_EQ(sizeof(cp_options), 32U);
+        EXPECT_EQ(OPTIONS_V1_SIZE, 32U);
+        EXPECT_EQ(sizeof(cp_options), 40U);
         EXPECT_EQ(sizeof(struct cp_preview_info), 72U);
     }
     EXPECT_EQ(sizeof(cp_format_info), 104U);
@@ -22,10 +26,20 @@ TEST(Structs, V1SizesAreFrozen) {
 
 TEST(Structs, OptionsSmallerThanV1AreRejected) {
     cp_options options = makeOptions();
-    options.struct_size = sizeof(cp_options) - 1;
+    options.struct_size = OPTIONS_V1_SIZE - 1;
     cp_preview* out = nullptr;
     EXPECT_EQ(cp_render_memory(SAMPLE.data(), SAMPLE.size(), &options, &out),
               CP_ERROR_INVALID_ARGUMENT);
+}
+
+TEST(Structs, V1OptionsWithoutTheHelperPathAreAccepted) {
+    cp_options options = makeOptions(64);
+    options.struct_size = OPTIONS_V1_SIZE;
+    options.dwg_helper_path = "ignored: beyond the caller's declared size";
+    cp_preview* raw = nullptr;
+    ASSERT_EQ(cp_render_memory(SAMPLE.data(), SAMPLE.size(), &options, &raw), CP_OK);
+    const PreviewPtr preview(raw);
+    EXPECT_EQ(infoOf(preview.get()).width, 64U);
 }
 
 struct NewerOptions {

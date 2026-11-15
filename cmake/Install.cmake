@@ -45,12 +45,3 @@ install(FILES
     ${PROJECT_SOURCE_DIR}/NOTICE
     ${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/cadpreview)
-
-if(CADPREVIEW_WITH_DWG)
-    # This build is GPL-3.0-or-later as a whole; ship the licenses of the GPL components.
-    set(vcpkg_share "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share")
-    install(FILES ${vcpkg_share}/libredwg/copyright
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/cadpreview RENAME LIBREDWG-COPYING)
-    install(FILES ${vcpkg_share}/jsmn/copyright
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/cadpreview RENAME JSMN-COPYING)
-endif()

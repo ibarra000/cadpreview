@@ -23,7 +23,7 @@ from pathlib import Path
 LOG = logging.getLogger("clang-tidy")
 
 REPO = Path(__file__).resolve().parent.parent
-PROJECT_DIRS = ("src", "cli", "tests", "fuzz")
+PROJECT_DIRS = ("src", "cli", "tests", "fuzz", "helpers")
 SOURCE_SUFFIXES = (".cpp",)
 
 

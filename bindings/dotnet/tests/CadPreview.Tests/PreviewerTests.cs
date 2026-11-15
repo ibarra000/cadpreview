@@ -170,6 +170,33 @@ public sealed class PreviewerTests : IDisposable
     }
 
     [Fact]
+    public void Render_DwgWithMissingHelper_ReportsTierUnavailable()
+    {
+        // Detected as DWG with no embedded preview, so only tier 4 (the helper) could draw it.
+        var path = Path.Combine(_directory, "drawing.dwg");
+        File.WriteAllBytes(path, [.. "AC1024"u8, .. new byte[122]]);
+        var options = new RenderOptions
+        {
+            Tier = Tier.Vector,
+            DwgHelperPath = Path.Combine(_directory, "no-such-helper"),
+        };
+
+        using var preview = Previewer.Render(path, options);
+
+        Assert.Equal(CadFormat.Dwg, preview.Info.Format);
+        Assert.Equal(FailureReason.TierUnavailable, preview.Info.Reason);
+        Assert.Contains("cadpreview-dwg", preview.Info.ReasonText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Render_DwgHelperPathWithNul_Throws()
+    {
+        var options = new RenderOptions { DwgHelperPath = "bad\0path" };
+
+        Assert.Throws<ArgumentException>(() => Previewer.Render("x"u8, options));
+    }
+
+    [Fact]
     public void Render_SizeZero_UsesTheLibraryDefault()
     {
         using var preview = Previewer.Render("x"u8, new RenderOptions { Size = 0 });

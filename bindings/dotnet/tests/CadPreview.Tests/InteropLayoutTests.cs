@@ -8,10 +8,11 @@ public sealed class InteropLayoutTests
     [Fact]
     public unsafe void NativeStructs_MatchTheVersion1CLayout()
     {
-        Assert.Equal(32, sizeof(NativeOptions));
+        Assert.Equal(40, sizeof(NativeOptions));
         Assert.Equal(72, sizeof(NativePreviewInfo));
         Assert.Equal(104, sizeof(NativeFormatInfo));
         Assert.Equal(16, (int)Marshal.OffsetOf<NativeOptions>(nameof(NativeOptions.Log)));
+        Assert.Equal(32, (int)Marshal.OffsetOf<NativeOptions>(nameof(NativeOptions.DwgHelperPath)));
         Assert.Equal(32, (int)Marshal.OffsetOf<NativePreviewInfo>(nameof(NativePreviewInfo.RenderTimeUs)));
     }
 

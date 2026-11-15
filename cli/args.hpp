@@ -16,6 +16,7 @@ struct Args {
     std::uint32_t size = 0; ///< 0 lets the library choose its default.
     std::uint32_t tier = 0;
     bool verbose = false;
+    std::string dwgHelper; ///< UTF-8; empty lets the library look next to itself.
 };
 
 struct ParseResult {

@@ -19,6 +19,11 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+# The Microsoft C/C++ runtime is linked statically (/MT), so cadpreview.dll and the NuGet
+# package need no VC++ redistributable. Only plain C types and library-owned memory cross the
+# API, so a separate runtime copy inside the DLL is safe. The vcpkg triplets match (static CRT).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
@@ -29,7 +34,8 @@ option(CADPREVIEW_BUILD_DOTNET_TESTS "Run the .NET wrapper tests through CTest" 
 option(CADPREVIEW_PYTHON_TESTS "Run the pytest suites (CLI, corpus tools) through CTest" ON)
 option(CADPREVIEW_LIBFUZZER "Build libFuzzer harnesses (clang only)" OFF)
 option(CADPREVIEW_COVERAGE "Instrument for gcov coverage (GCC only)" OFF)
-option(CADPREVIEW_WITH_DWG "DWG vector rendering through LibreDWG; makes the build GPL-3.0-or-later" OFF)
+option(CADPREVIEW_BUILD_DWG_HELPER
+    "Build cadpreview-dwg, the separate GPL-3.0-or-later program that decodes DWG with LibreDWG" OFF)
 set(CADPREVIEW_SANITIZE "" CACHE STRING "Sanitizers: address, address;undefined, or thread")
 
 include(GNUInstallDirs)
@@ -46,6 +52,7 @@ if(CADPREVIEW_BUILD_CLI)
     add_subdirectory(cli)
 endif()
 
+
 if(CADPREVIEW_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
@@ -53,6 +60,12 @@ endif()
 
 if(CADPREVIEW_BUILD_TESTS OR CADPREVIEW_LIBFUZZER)
     add_subdirectory(fuzz)
+endif()
+
+# A separate program: it links LibreDWG and nothing of the library, so no GPL code enters
+# cadpreview.dll / libcadpreview.so. see notes/licenses.md
+if(CADPREVIEW_BUILD_DWG_HELPER)
+    add_subdirectory(helpers/dwg)
 endif()
 
 include(cmake/Install.cmake)

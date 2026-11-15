@@ -33,6 +33,13 @@ target_include_directories(cadpreview_test_support PUBLIC support)
 target_link_libraries(cadpreview_test_support PUBLIC PNG::PNG)
 cadpreview_configure_target(cadpreview_test_support)
 
+# Stands in for the cadpreview-dwg helper (see support/fake_helper.cpp).
+add_executable(cadpreview_fake_helper support/fake_helper.cpp)
+if(WIN32)
+    target_sources(cadpreview_fake_helper PRIVATE ${PROJECT_SOURCE_DIR}/resources/windows/utf8.manifest)
+endif()
+cadpreview_configure_target(cadpreview_fake_helper)
+
 add_executable(cadpreview_unit_tests
     unit/byte_reader_test.cpp
     unit/compose_test.cpp
@@ -40,15 +47,24 @@ add_executable(cadpreview_unit_tests
     unit/detect_test.cpp
     unit/dwg_test.cpp
     unit/dxf_test.cpp
+    unit/dxf_writer_test.cpp
     unit/geometry_test.cpp
     unit/ladder_test.cpp
     unit/log_test.cpp
     unit/pipeline_test.cpp
+    unit/process_test.cpp
     unit/placeholder_test.cpp
     unit/render_test.cpp
     unit/source_test.cpp
     unit/utf8_test.cpp
     unit/vector_test.cpp)
+# The DWG helper's DXF writer has no dependencies (in particular no LibreDWG), so it is tested
+# here against the library's DXF reader.
+target_sources(cadpreview_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/helpers/dwg/dxf_writer.cpp)
+target_include_directories(cadpreview_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/helpers/dwg)
+target_compile_definitions(cadpreview_unit_tests PRIVATE
+    CADPREVIEW_FAKE_HELPER="$<TARGET_FILE:cadpreview_fake_helper>")
+add_dependencies(cadpreview_unit_tests cadpreview_fake_helper)
 target_link_libraries(cadpreview_unit_tests PRIVATE
     cadpreview_core cadpreview_test_support GTest::gtest GTest::gtest_main)
 cadpreview_configure_target(cadpreview_unit_tests)
@@ -56,12 +72,16 @@ gtest_discover_tests(cadpreview_unit_tests TEST_PREFIX "unit." DISCOVERY_MODE PR
 
 add_executable(cadpreview_api_tests
     api/arguments_test.cpp
+    api/dwg_helper_test.cpp
     api/misc_test.cpp
     api/render_test.cpp
     api/structs_test.cpp
     api/threads_test.cpp)
 target_link_libraries(cadpreview_api_tests PRIVATE
     cadpreview cadpreview_test_support GTest::gtest GTest::gtest_main Threads::Threads)
+target_compile_definitions(cadpreview_api_tests PRIVATE
+    CADPREVIEW_FAKE_HELPER="$<TARGET_FILE:cadpreview_fake_helper>")
+add_dependencies(cadpreview_api_tests cadpreview_fake_helper)
 cadpreview_configure_target(cadpreview_api_tests)
 gtest_discover_tests(cadpreview_api_tests TEST_PREFIX "api." DISCOVERY_MODE PRE_TEST)
 
@@ -83,6 +103,13 @@ if(NOT CADPREVIEW_INSTRUMENTED)
             -DTOOL=${export_tool}
             -DMSVC=${MSVC}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/abi/check_exports.cmake)
+    if(MSVC)
+        add_test(NAME abi.static_runtime
+            COMMAND ${CMAKE_COMMAND}
+                -DLIBRARY=$<TARGET_FILE:cadpreview>
+                -DTOOL=${CMAKE_LINKER}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/abi/check_imports.cmake)
+    endif()
 
     set(stage_dir ${PROJECT_BINARY_DIR}/package-test/stage)
     add_test(NAME package.install
@@ -115,7 +142,7 @@ if(CADPREVIEW_PYTHON_TESTS)
         add_test(NAME cli.behaviour
             COMMAND ${pytest_command} ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_cli.py)
         set_tests_properties(cli.behaviour PROPERTIES
-            ENVIRONMENT "CADPREVIEW_CLI=$<TARGET_FILE:cadpreview_cli>")
+            ENVIRONMENT "CADPREVIEW_CLI=$<TARGET_FILE:cadpreview_cli>;CADPREVIEW_FAKE_HELPER=$<TARGET_FILE:cadpreview_fake_helper>")
     endif()
     add_test(NAME tools.corpus
         COMMAND ${pytest_command} ${PROJECT_SOURCE_DIR}/tools/tests)

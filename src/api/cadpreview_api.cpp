@@ -37,9 +37,9 @@ static_assert(static_cast<int>(Reason::TiersFailed) == CP_REASON_TIERS_FAILED);
 static_assert(static_cast<int>(cadpreview::LogLevel::Error) == CP_LOG_ERROR);
 static_assert(std::is_same_v<cadpreview::LogCallback, cp_log_fn>);
 
-// Version-1 sizes are the smallest struct_size ever accepted. When a field is appended, replace
-// sizeof with offsetof(last v1 field) + its size so that old callers keep working.
-constexpr std::size_t OPTIONS_V1_SIZE = sizeof(cp_options);
+// Version-1 sizes are the smallest struct_size ever accepted. When a field is appended, the v1
+// size becomes the offset of the first appended field, so that old callers keep working.
+constexpr std::size_t OPTIONS_V1_SIZE = offsetof(cp_options, dwg_helper_path);
 constexpr std::size_t PREVIEW_INFO_V1_SIZE = sizeof(struct cp_preview_info);
 constexpr std::size_t FORMAT_INFO_V1_SIZE = sizeof(cp_format_info);
 constexpr std::uint32_t MAX_STRUCT_SIZE = 4096;
@@ -110,7 +110,14 @@ std::optional<ParsedOptions> parseOptions(const cp_options* opts) noexcept {
     if (size < cadpreview::MIN_SIZE || size > cadpreview::MAX_SIZE) {
         return std::nullopt;
     }
-    parsed.render = {size, static_cast<Tier>(copy.tier)};
+    parsed.render.size = size;
+    parsed.render.tier = static_cast<Tier>(copy.tier);
+    if (copy.dwg_helper_path != nullptr) {
+        if (!cadpreview::isValidUtf8(copy.dwg_helper_path)) {
+            return std::nullopt;
+        }
+        parsed.render.dwgHelper = cadpreview::pathFromUtf8(copy.dwg_helper_path);
+    }
     parsed.log = cadpreview::Logger(copy.log, copy.log_user);
     return parsed;
 }

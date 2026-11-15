@@ -119,6 +119,7 @@ int render(const Args& args) {
     options.size = args.size;
     options.tier = args.tier;
     options.log = args.verbose ? &logToStderr : nullptr;
+    options.dwg_helper_path = args.dwgHelper.empty() ? nullptr : args.dwgHelper.c_str();
 
     cp_preview* raw = nullptr;
     const cp_status status = cp_render_file(args.input.c_str(), &options, &raw);

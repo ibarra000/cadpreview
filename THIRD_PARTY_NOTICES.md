@@ -9,8 +9,9 @@ cairo is used under the Mozilla Public License 1.1. Its unmodified source is ava
 https://www.cairographics.org/releases/ (version 1.18.6); cadpreview changes only cairo's build
 script (see ports/README.md), not its source files.
 
-Builds configured with CADPREVIEW_WITH_DWG=ON also link LibreDWG and jsmn. Those builds are
-licensed GPL-3.0-or-later as a whole; their notices are installed alongside them.
+LibreDWG and jsmn are not part of this library. They are linked only into cadpreview-dwg, a
+separate GPL-3.0-or-later program that the library can start for DWG vector rendering; its
+notices are installed with it (share/doc/cadpreview-dwg).
 
 ## libpng
 

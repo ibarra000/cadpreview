@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices.Marshalling;
+using System.Text;
 
 namespace CadPreview;
 
@@ -22,8 +23,15 @@ public static class Previewer
         ValidatePath(path);
         var settings = Validated(options);
         using var relay = LogRelay.For(settings.Log);
-        var native = ToNative(settings, relay);
-        var status = NativeMethods.RenderFile(path, &native, out var handle);
+        var helper = NullTerminatedUtf8(settings.DwgHelperPath);
+        PreviewSafeHandle handle;
+        int status;
+        fixed (byte* helperPath = helper)
+        {
+            var native = ToNative(settings, relay, helperPath);
+            status = NativeMethods.RenderFile(path, &native, out handle);
+        }
+
         return Complete(status, handle, relay);
     }
 
@@ -33,11 +41,13 @@ public static class Previewer
     {
         var settings = Validated(options);
         using var relay = LogRelay.For(settings.Log);
-        var native = ToNative(settings, relay);
+        var helper = NullTerminatedUtf8(settings.DwgHelperPath);
         PreviewSafeHandle handle;
         int status;
         fixed (byte* bytes = data)
+        fixed (byte* helperPath = helper)
         {
+            var native = ToNative(settings, relay, helperPath);
             status = NativeMethods.RenderMemory(bytes, (nuint)data.Length, &native, out handle);
         }
 
@@ -86,16 +96,26 @@ public static class Previewer
             throw new ArgumentOutOfRangeException(nameof(options), settings.Tier, $"Unknown {nameof(RenderOptions.Tier)}.");
         }
 
+        if (settings.DwgHelperPath?.Contains('\0', StringComparison.Ordinal) == true)
+        {
+            throw new ArgumentException($"{nameof(RenderOptions.DwgHelperPath)} contains a NUL character.", nameof(options));
+        }
+
         return settings;
     }
 
-    private static unsafe NativeOptions ToNative(RenderOptions settings, LogRelay? relay) => new()
+    // The C API reads the string only during the call, so a pinned array is enough.
+    private static byte[]? NullTerminatedUtf8(string? text) =>
+        text is null ? null : Encoding.UTF8.GetBytes(text + '\0');
+
+    private static unsafe NativeOptions ToNative(RenderOptions settings, LogRelay? relay, byte* dwgHelperPath) => new()
     {
         StructSize = (uint)sizeof(NativeOptions),
         Size = (uint)settings.Size,
         Tier = (uint)settings.Tier,
         Log = relay is null ? null : &LogRelay.Forward,
         LogUser = relay?.Cookie ?? 0,
+        DwgHelperPath = dwgHelperPath,
     };
 
     private static Preview Complete(int status, PreviewSafeHandle handle, LogRelay? relay)

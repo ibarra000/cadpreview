@@ -28,19 +28,34 @@ The font subset was made with fonttools (MIT) using
 `pyftsubset NotoSans-Regular.ttf --unicodes=U+0020-007E,U+00A0-00FF,U+00B0,U+00B1,U+00D8,U+2205,U+2300,U+2013,U+2014,U+2018-201D,U+2022,U+2026 --layout-features='' --no-hinting --desubroutinize`.
 The source font's SHA-256 is 478c558e…3823.
 
-### GPL build only (`CADPREVIEW_WITH_DWG=ON`)
+### cadpreview-dwg helper only (separate GPL program)
 
 | Component | Version | Used for | License | Checked |
 |---|---|---|---|---|
-| LibreDWG | 0.13.4 | DWG tier 4 | GPL-3.0-or-later | 2026-11-15 |
+| LibreDWG | 0.13.4 | DWG decoding for tier 4 | GPL-3.0-or-later | 2026-11-15 |
 | jsmn | 2019-04-27 | LibreDWG dependency | MIT | 2026-11-15 |
 
-Linking LibreDWG makes that build GPL-3.0-or-later as a whole. The default build and the NuGet
-package do not include it. The GPL build installs `LIBREDWG-COPYING` and `JSMN-COPYING`.
+**License boundary (owner decision, 2026-11-15).** cairo is used under MPL-1.1, which is not
+compatible with the GPL, so cairo and LibreDWG must never share a binary:
 
-The native library links the Microsoft C++ runtime dynamically (/MD), so the Visual C++
-2015-2026 redistributable must be present on Windows. Whether the NuGet package should carry
-the runtime DLLs app-locally is an open question for a maintainer.
+- The library (`cadpreview.dll` / `libcadpreview.so`, the CLI, the NuGet package) is
+  Apache-2.0 and contains cairo but no GPL code.
+- LibreDWG is linked only into `cadpreview-dwg` (`helpers/dwg/`, built with
+  `CADPREVIEW_BUILD_DWG_HELPER=ON`). That program contains no cairo and no library code; its
+  binary is GPL-3.0-or-later, and its own source files are Apache-2.0, which GPL-3.0 accepts.
+- The two communicate only by command line and pipes (the library starts the helper and reads
+  DXF text from it; see [dwg.md](dwg.md#helper-protocol)), which keeps them separate programs.
+- `helpers/dwg/CMakeLists.txt` fails the configure step if either side's link list crosses
+  the boundary.
+- The helper installs `LIBREDWG-COPYING`, `JSMN-COPYING` and its README under
+  `share/doc/cadpreview-dwg`. It is not in the NuGet package. Anyone who distributes the helper
+  binary must also offer its corresponding source (GPL-3.0 section 6), including LibreDWG's.
+
+The Microsoft C/C++ runtime is linked statically (/MT, `x64-windows-static` triplets), so
+`cadpreview.dll` and the NuGet package need no Visual C++ redistributable (owner decision,
+2026-11-15). The `abi.static_runtime` test fails if the DLL ever imports the runtime DLLs.
+Static linking is one of the deployment methods Microsoft documents for Visual C++ programs
+("Deployment in Visual C++", learn.microsoft.com).
 
 ## Build, test and development only (not distributed)
 

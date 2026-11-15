@@ -12,8 +12,12 @@ All notable changes to this project are documented here. The format follows
 
 - DWG: format and version detection, and tier 1 (embedded preview) read from the documented
   image-seeker layout, which was confirmed on 17 Autodesk sample files (AC1021, AC1024).
-- DWG tier 4 through LibreDWG, available only in the opt-in GPL build (`CADPREVIEW_WITH_DWG`).
-  Default builds mark the tier unavailable and add a warning to the preview.
+- DWG tier 4 through `cadpreview-dwg`, a separate GPL-3.0-or-later program that decodes DWG
+  with LibreDWG (`CADPREVIEW_BUILD_DWG_HELPER`). The library starts it with time, memory and
+  output limits and draws its DXF output; the library itself contains no GPL code. Without the
+  helper, the tier is reported as unavailable with a warning.
+- `cp_options.dwg_helper_path` (appended; version-1 callers keep working),
+  `RenderOptions.DwgHelperPath` in .NET, and `--dwg-helper` in the CLI.
 - DXF (ASCII): tier 1 from THUMBNAILIMAGE, and tier 4 from the in-house reader.
 - Tier 4 drawing with statically linked cairo and an embedded Noto Sans subset.
 - In-house DIB decoder and libpng PNG decoding, fitted onto the canvas with the 5% margin.
@@ -23,7 +27,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- The registry can list tiers that a build leaves out; forcing one reports why.
+- The registry can list tiers that a build leaves out; forcing one reports why. A tier can
+  also report at run time that it cannot run (for example a missing helper).
+- The Microsoft C++ runtime is linked statically on Windows (/MT), so the NuGet package needs
+  no Visual C++ redistributable.
 
 ## [0.1.0] - unreleased
 

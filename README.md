@@ -12,14 +12,17 @@ is tested on Linux.
 
 | Format | Tier 1 (embedded preview) | Tier 4 (2D vector) |
 |---|---|---|
-| DWG (R13 and later; checked on AC1021, AC1024) | yes | GPL build only (`CADPREVIEW_WITH_DWG=ON`, LibreDWG) |
+| DWG (R13 and later; checked on AC1021, AC1024) | yes | with the separate `cadpreview-dwg` helper (LibreDWG, GPL) |
 | DXF (ASCII) | yes (THUMBNAILIMAGE) | yes |
 | DXF (binary) | detected, not read yet | detected, not read yet |
 
-The default build and the `CadPreview` NuGet package are Apache-2.0. Building with
-`CADPREVIEW_WITH_DWG=ON` (presets `win-release-dwg`, `linux-debug-dwg`) links LibreDWG and
-makes the resulting binaries GPL-3.0-or-later. In the default build, DWG tier 4 is reported as
-unavailable, with a warning on the preview.
+The library, CLI and `CadPreview` NuGet package are Apache-2.0 and contain no GPL code. DWG
+vector rendering uses LibreDWG, which is GPL-3.0, so it runs in a separate program,
+`cadpreview-dwg`. The library starts that program when it is installed and reads the drawing
+from its output. Build it with `CADPREVIEW_BUILD_DWG_HELPER=ON` (presets `win-release-dwg`,
+`linux-debug-dwg`); see [helpers/dwg/README.md](helpers/dwg/README.md). Without the helper,
+DWG files still get their embedded preview, and tier 4 is reported as unavailable with a
+warning.
 
 ## How it renders
 
@@ -94,7 +97,8 @@ using var preview = Previewer.Render("part.sldprt", new RenderOptions { Size = 5
 preview.Save("part.png");
 ```
 
-The `CadPreview` NuGet package (net10.0) ships the native library for win-x64 and win-arm64.
+The `CadPreview` NuGet package (net10.0) ships the native library for win-x64 and win-arm64,
+with the C++ runtime linked in statically, so no Visual C++ redistributable is needed.
 The managed assembly is `CadPreview.Net.dll`, so it cannot collide with the native
 `cadpreview.dll` on case-insensitive file systems.
 
@@ -127,7 +131,7 @@ To pack and try the NuGet package locally:
 
 ```sh
 python tools/nuget.py pack --stage win-x64=build/win-release/stage --version-suffix local
-python tools/nuget.py smoke --version 0.1.0-local
+python tools/nuget.py smoke --version 0.2.0-local
 ```
 
 ## Repository layout
@@ -142,6 +146,7 @@ python tools/nuget.py smoke --version 0.1.0-local
 | `fuzz/` | Fuzz harnesses |
 | `corpus/` | Test files and their provenance manifest |
 | `notes/` | Format findings, license register, milestone reports |
+| `helpers/dwg/` | `cadpreview-dwg`, the separate GPL program that decodes DWG with LibreDWG |
 | `tools/` | Corpus runner and NuGet packing scripts |
 
 ## Roadmap

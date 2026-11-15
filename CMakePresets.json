@@ -33,7 +33,7 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
         "CADPREVIEW_BUILD_DOTNET_TESTS": "ON"
       }
     },
@@ -61,7 +61,7 @@
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CADPREVIEW_SANITIZE": "address",
         "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-asan"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-asan"
       }
     },
     {
@@ -69,7 +69,7 @@
       "displayName": "Windows ARM64 Release (MSVC, native)",
       "inherits": "win-release",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md"
+        "VCPKG_TARGET_TRIPLET": "arm64-windows-static"
       }
     },
     {
@@ -77,7 +77,7 @@
       "displayName": "Windows x64 Release with LibreDWG (GPL build)",
       "inherits": "win-release",
       "cacheVariables": {
-        "CADPREVIEW_WITH_DWG": "ON",
+        "CADPREVIEW_BUILD_DWG_HELPER": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests;dwg"
       }
     },
@@ -147,7 +147,7 @@
       "displayName": "Linux Debug with LibreDWG (GPL build)",
       "inherits": "linux-debug",
       "cacheVariables": {
-        "CADPREVIEW_WITH_DWG": "ON",
+        "CADPREVIEW_BUILD_DWG_HELPER": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests;dwg",
         "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF"
       }

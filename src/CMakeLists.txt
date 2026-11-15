@@ -8,12 +8,14 @@ add_library(cadpreview_core STATIC
     common/utf8.cpp
     containers/source.cpp
     formats/detect.cpp
+    formats/dwg/helper.cpp
     formats/dwg/preview.cpp
     formats/dxf/document.cpp
     formats/dxf/entities.cpp
     formats/dxf/text.cpp
     formats/dxf/tokenizer.cpp
     formats/format.cpp
+    platform/module_path.cpp
     render/compose.cpp
     render/decode/dib.cpp
     render/decode/png_decode.cpp
@@ -29,26 +31,16 @@ add_library(cadpreview_core STATIC
     tiers/ladder.cpp
     tiers/pipeline.cpp
     tiers/placeholder.cpp)
+if(WIN32)
+    target_sources(cadpreview_core PRIVATE platform/process_windows.cpp)
+else()
+    target_sources(cadpreview_core PRIVATE platform/process_posix.cpp)
+    target_link_libraries(cadpreview_core PRIVATE ${CMAKE_DL_LIBS}) # dladdr
+endif()
 target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # cairo before libpng: static archives are searched in order on Linux, and CMake drops the
 # later duplicate of PNG::PNG that cadpreview_cairo lists after libcairo.a.
 target_link_libraries(cadpreview_core PRIVATE cadpreview_cairo PNG::PNG)
-if(CADPREVIEW_WITH_DWG)
-    message(WARNING "CADPREVIEW_WITH_DWG links LibreDWG: the resulting binaries are GPL-3.0-or-later.")
-    find_package(unofficial-libredwg CONFIG REQUIRED)
-    # LibreDWG names its target "libredwg" under MSVC and "redwg" elsewhere, and the vcpkg port
-    # exports it under that name.
-    if(TARGET unofficial::libredwg::libredwg)
-        set(cadpreview_libredwg unofficial::libredwg::libredwg)
-    elseif(TARGET unofficial::libredwg::redwg)
-        set(cadpreview_libredwg unofficial::libredwg::redwg)
-    else()
-        message(FATAL_ERROR "the unofficial-libredwg package defines no known target")
-    endif()
-    target_sources(cadpreview_core PRIVATE formats/dwg/libredwg_reader.cpp)
-    target_link_libraries(cadpreview_core PRIVATE ${cadpreview_libredwg})
-    target_compile_definitions(cadpreview_core PRIVATE CADPREVIEW_WITH_DWG)
-endif()
 cadpreview_embed_file(cadpreview_core
     ${PROJECT_SOURCE_DIR}/resources/fonts/NotoSans-CadPreview.ttf embeddedFont)
 set_target_properties(cadpreview_core PROPERTIES

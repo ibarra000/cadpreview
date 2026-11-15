@@ -1,16 +1,17 @@
+#include "common/errors.hpp"
+#include "formats/dwg/helper.hpp"
 #include "formats/dwg/preview.hpp"
+#include "formats/dxf/document.hpp"
+#include "formats/dxf/entities.hpp"
 #include "render/compose.hpp"
 #include "render/decode/dib.hpp"
 #include "render/decode/png_decode.hpp"
 #include "render/vector/cairo_renderer.hpp"
 #include "tiers/builtin_tiers.hpp"
 
+#include <span>
+#include <string>
 #include <vector>
-
-#ifdef CADPREVIEW_WITH_DWG
-#include "formats/dwg/libredwg_reader.hpp"
-#include "formats/dxf/entities.hpp"
-#endif
 
 namespace cadpreview {
 
@@ -24,24 +25,21 @@ TierOutcome thumbnail(const TierContext& context) {
     return {composeOnCanvas(image, context.size), {}, {}};
 }
 
-#ifndef CADPREVIEW_WITH_DWG
-TierOutcome missing(const TierContext& /*context*/) {
-    return {std::nullopt, "not built", {}};
-}
-#endif
-
-} // namespace
-
-#ifdef CADPREVIEW_WITH_DWG
-namespace {
-
+// LibreDWG (GPL) runs in the separate cadpreview-dwg program, never in this library; its DXF
+// output is drawn by the same code as DXF files. see notes/dwg.md#helper-protocol
 TierOutcome vector(const TierContext& context) {
-    const std::filesystem::path* path = context.source.filePath();
-    if (path == nullptr) {
-        return {std::nullopt, "DWG vector rendering needs a file path, not in-memory data", {}};
+    const std::filesystem::path* file = context.source.filePath();
+    if (file == nullptr) {
+        throw TierUnavailable("DWG vector rendering needs a file path, not in-memory data");
     }
-    const auto translated = dwg::readWithLibreDwg(*path);
-    const Drawing drawing = dxf::toDrawing(translated->document);
+    const auto helper = dwg::locateHelper(context.dwgHelper);
+    if (!helper) {
+        throw TierUnavailable(
+            "DWG vector rendering needs the cadpreview-dwg helper (GPL), which was not found");
+    }
+    const std::string text = dwg::runHelper(*helper, *file, context.log);
+    const auto bytes = std::as_bytes(std::span(text.data(), text.size()));
+    const Drawing drawing = dxf::toDrawing(dxf::readDocument(bytes, dxf::Parts::Everything));
     if (drawing.primitiveCount() == 0) {
         return {std::nullopt, "no visible entities", {}};
     }
@@ -50,20 +48,8 @@ TierOutcome vector(const TierContext& context) {
 
 } // namespace
 
-TierEntry dwgVectorTier() {
-    return {Format::Dwg, Tier::Vector, vector};
-}
-#endif
-
 std::vector<TierEntry> dwgTiers() {
-    std::vector<TierEntry> tiers{{Format::Dwg, Tier::Thumbnail, thumbnail}};
-#ifdef CADPREVIEW_WITH_DWG
-    tiers.push_back(dwgVectorTier());
-#else
-    tiers.emplace_back(Format::Dwg, Tier::Vector, missing,
-                       "DWG vector rendering needs a build with CADPREVIEW_WITH_DWG (GPL)");
-#endif
-    return tiers;
+    return {{Format::Dwg, Tier::Thumbnail, thumbnail}, {Format::Dwg, Tier::Vector, vector}};
 }
 
 } // namespace cadpreview
