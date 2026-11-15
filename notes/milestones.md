@@ -109,13 +109,13 @@ on every file.
 
 | Check | Result |
 |---|---|
-| Windows x64 release / ASan (local) | 192 / 186 tests pass |
-| Windows x64 with the helper built (local) | 193 tests pass |
+| Windows x64 release / ASan (local) | 193 / 187 tests pass |
+| Windows x64 with the helper built (local) | 194 tests pass |
 | GCC 15 strict warnings (local syntax check of the Windows-target code) | clean |
 | clang-tidy 23 (default and GPL builds) / pre-commit | clean |
 | Fuzz harnesses | 5 (render, C API, DXF, DWG preview, image decode); replay in CTest, 60 s each in CI, 20 min each nightly |
-| CI (GitHub Actions run 43747613157) | all 13 jobs green: Windows x64, ARM64 and GPL build; Linux GCC, Clang, ASan+UBSan, TSan, coverage and GPL build; clang-tidy, cppcheck, libFuzzer (5 harnesses), pre-commit, NuGet pack + smoke |
-| Line coverage (gcovr, src + cli, default build) | 90.2% lines, 97.0% functions, 62.7% branches (gate: 80% lines) |
+| CI (GitHub Actions run 43761753489) | all 13 jobs green: Windows x64, ARM64 and GPL build; Linux GCC, Clang, ASan+UBSan, TSan, coverage and GPL build; clang-tidy, cppcheck, libFuzzer (5 harnesses), pre-commit, NuGet pack + smoke |
+| Line coverage (gcovr, src + cli, default build) | 89.2% lines, 97.7% functions, 61.2% branches (gate: 80% lines) |
 
 ### Review findings
 
