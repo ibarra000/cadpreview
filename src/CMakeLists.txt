@@ -30,10 +30,14 @@ add_library(cadpreview_core STATIC
     tiers/pipeline.cpp
     tiers/placeholder.cpp)
 target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(cadpreview_core PRIVATE PNG::PNG cadpreview_cairo)
+# cairo before libpng: static archives are searched in order on Linux, and CMake drops the
+# later duplicate of PNG::PNG that cadpreview_cairo lists after libcairo.a.
+target_link_libraries(cadpreview_core PRIVATE cadpreview_cairo PNG::PNG)
 if(CADPREVIEW_WITH_DWG)
     message(WARNING "CADPREVIEW_WITH_DWG links LibreDWG: the resulting binaries are GPL-3.0-or-later.")
-    find_package(unofficial-libredwg CONFIG REQUIRED)
+    # GLOBAL: the static core passes this dependency on to tests, CLI and fuzz targets, which
+    # live in other directories.
+    find_package(unofficial-libredwg CONFIG REQUIRED GLOBAL)
     target_sources(cadpreview_core PRIVATE formats/dwg/libredwg_reader.cpp)
     target_link_libraries(cadpreview_core PRIVATE unofficial::libredwg::libredwg)
     target_compile_definitions(cadpreview_core PRIVATE CADPREVIEW_WITH_DWG)
