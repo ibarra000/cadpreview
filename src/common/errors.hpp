@@ -12,4 +12,12 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+/// Thrown by a tier that cannot run in this environment, for example because a helper program
+/// is not installed. The ladder reports it like a tier the build leaves out: a warning in auto
+/// mode, CP_REASON_TIER_UNAVAILABLE when the tier is forced. Same message rules as FormatError.
+class TierUnavailable : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 } // namespace cadpreview

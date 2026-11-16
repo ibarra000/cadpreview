@@ -2,6 +2,7 @@
 
 #include "common/errors.hpp"
 #include "render/png.hpp"
+#include "tiers/builtin_tiers.hpp"
 #include "tiers/placeholder.hpp"
 
 #include <algorithm>
@@ -45,13 +46,21 @@ Preview finishImage(const Detection& detection, Tier tier, const Image& image,
     return preview;
 }
 
-TierOutcome runTier(const TierEntry& entry, const TierContext& context) {
+// One tier's outcome, or the reason it could not run here at all.
+struct Attempt {
+    TierOutcome outcome;
+    std::string unavailable;
+};
+
+Attempt runTier(const TierEntry& entry, const TierContext& context) {
     try {
-        return entry.run(context);
+        return {entry.run(context), {}};
+    } catch (const TierUnavailable& error) {
+        return {{}, error.what()};
     } catch (const FormatError& error) {
-        return {std::nullopt, error.what(), {}};
+        return {{std::nullopt, error.what(), {}}, {}};
     } catch (const std::bad_alloc&) {
-        return {std::nullopt, "out of memory", {}};
+        return {{std::nullopt, "out of memory", {}}, {}};
     } catch (const std::exception& error) {
         // Library exceptions (filesystem, iostream) can quote paths, so they stay out of the
         // placeholder text and go only to the caller's log.
@@ -59,9 +68,9 @@ TierOutcome runTier(const TierEntry& entry, const TierContext& context) {
             context.log.debug(std::format("tier {} raised: {}",
                                           static_cast<std::uint32_t>(entry.tier), error.what()));
         }
-        return {std::nullopt, "internal error", {}};
+        return {{std::nullopt, "internal error", {}}, {}};
     } catch (...) {
-        return {std::nullopt, "internal error", {}};
+        return {{std::nullopt, "internal error", {}}, {}};
     }
 }
 
@@ -145,7 +154,12 @@ const TierEntry* TierRegistry::find(Format format, Tier tier) const {
 }
 
 const TierRegistry& defaultRegistry() {
-    static const TierRegistry DEFAULT_REGISTRY;
+    static const TierRegistry DEFAULT_REGISTRY([] {
+        std::vector<TierEntry> entries = dxfTiers();
+        std::vector<TierEntry> dwg = dwgTiers();
+        entries.insert(entries.end(), dwg.begin(), dwg.end());
+        return entries;
+    }());
     return DEFAULT_REGISTRY;
 }
 
@@ -176,12 +190,29 @@ Preview runLadder(Source& source, const Detection& detection, const RenderOption
         return makePlaceholder(detection, Reason::TierUnavailable,
                                unavailableText(detection, options.tier), options.size);
     }
+    if (options.tier != Tier::Auto && !tiers.front()->unavailable.empty()) {
+        return makePlaceholder(detection, Reason::TierUnavailable,
+                               std::string(tiers.front()->unavailable), options.size);
+    }
 
-    const TierContext context{source, detection, options.size, log};
+    const TierContext context{source, detection, options.size, log, options.dwgHelper};
     std::vector<std::string> failures;
     std::vector<std::string> warnings;
     for (const TierEntry* entry : tiers) {
-        TierOutcome outcome = runTier(*entry, context);
+        if (!entry->unavailable.empty()) {
+            warnings.emplace_back(entry->unavailable);
+            continue;
+        }
+        Attempt attempt = runTier(*entry, context);
+        if (!attempt.unavailable.empty()) {
+            if (options.tier != Tier::Auto) {
+                return makePlaceholder(detection, Reason::TierUnavailable,
+                                       std::move(attempt.unavailable), options.size, warnings);
+            }
+            warnings.push_back(std::move(attempt.unavailable));
+            continue;
+        }
+        TierOutcome& outcome = attempt.outcome;
         warnings.insert(warnings.end(), outcome.warnings.begin(), outcome.warnings.end());
         const auto number = static_cast<std::uint32_t>(entry->tier);
         if (outcome.image) {

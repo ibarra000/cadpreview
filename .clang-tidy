@@ -25,7 +25,7 @@ Checks: >
   -readability-magic-numbers,
   -readability-identifier-length
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*[/\\](src|cli|tests|fuzz)[/\\].*'
+HeaderFilterRegex: '.*[/\\](src|cli|tests|fuzz|helpers)[/\\].*'
 CheckOptions:
   readability-identifier-naming.NamespaceCase: lower_case
   readability-identifier-naming.ClassCase: CamelCase

@@ -5,9 +5,24 @@ preview. It is written in C++20 behind a small, stable C API, with a thin .NET w
 thin command-line tool on top. Windows (MSVC) is the primary platform; the code also builds and
 is tested on Linux.
 
-> **Status: milestone 1 (skeleton).** Every input currently produces a neutral placeholder
-> image that names the detected format and the reason. Format support arrives milestone by
-> milestone; see [Roadmap](#roadmap).
+> **Status: milestone 2.** Reads DWG and DXF files. Other formats produce a neutral placeholder
+> that names the detected format and the reason. See [Roadmap](#roadmap).
+
+## Supported formats
+
+| Format | Tier 1 (embedded preview) | Tier 4 (vector line drawing) |
+|---|---|---|
+| DWG (R13 and later; checked on AC1021, AC1024) | yes | with the separate `cadpreview-dwg` helper (LibreDWG, GPL); solids and surfaces as wireframes |
+| DXF (ASCII) | yes (THUMBNAILIMAGE) | yes; 3D meshes as wireframes, ACIS solids counted only |
+| DXF (binary) | detected, not read yet | detected, not read yet |
+
+The library, CLI and `CadPreview` NuGet package are Apache-2.0 and contain no GPL code. DWG
+vector rendering uses LibreDWG, which is GPL-3.0, so it runs in a separate program,
+`cadpreview-dwg`. The library starts that program when it is installed and reads the drawing
+from its output. Build it with `CADPREVIEW_BUILD_DWG_HELPER=ON` (presets `win-release-dwg`,
+`linux-debug-dwg`); see [helpers/dwg/README.md](helpers/dwg/README.md). Without the helper,
+DWG files still get their embedded preview, and tier 4 is reported as unavailable with a
+warning.
 
 ## How it renders
 
@@ -19,7 +34,7 @@ that yields an image:
 | 1 | Preview image embedded in the file |
 | 2 | Cached display mesh, rendered by a software rasterizer |
 | 3 | B-rep geometry from the modeling kernel stream, rebuilt and tessellated |
-| 4 | 2D vector entities (DWG/DXF only) |
+| 4 | Vector entities, with 3D bodies as an isometric wireframe (DWG/DXF only) |
 | 5 | Placeholder with the format name and a short reason |
 
 Formats are detected from file content, never from the extension. Unreadable, unsupported,
@@ -82,7 +97,8 @@ using var preview = Previewer.Render("part.sldprt", new RenderOptions { Size = 5
 preview.Save("part.png");
 ```
 
-The `CadPreview` NuGet package (net10.0) ships the native library for win-x64 and win-arm64.
+The `CadPreview` NuGet package (net10.0) ships the native library for win-x64 and win-arm64,
+with the C++ runtime linked in statically, so no Visual C++ redistributable is needed.
 The managed assembly is `CadPreview.Net.dll`, so it cannot collide with the native
 `cadpreview.dll` on case-insensitive file systems.
 
@@ -115,7 +131,7 @@ To pack and try the NuGet package locally:
 
 ```sh
 python tools/nuget.py pack --stage win-x64=build/win-release/stage --version-suffix local
-python tools/nuget.py smoke --version 0.1.0-local
+python tools/nuget.py smoke --version 0.2.0-local
 ```
 
 ## Repository layout
@@ -130,12 +146,13 @@ python tools/nuget.py smoke --version 0.1.0-local
 | `fuzz/` | Fuzz harnesses |
 | `corpus/` | Test files and their provenance manifest |
 | `notes/` | Format findings, license register, milestone reports |
+| `helpers/dwg/` | `cadpreview-dwg`, the separate GPL program that decodes DWG with LibreDWG |
 | `tools/` | Corpus runner and NuGet packing scripts |
 
 ## Roadmap
 
-1. Package skeleton, public API, CLI, CI, placeholder output, corpus manifest *(this release)*
-2. DWG/DXF: embedded preview, then vector rendering
+1. Package skeleton, public API, CLI, CI, placeholder output, corpus manifest *(0.1)*
+2. DWG/DXF: embedded preview, then vector rendering *(0.2)*
 3. Will read SolidWorks files: embedded preview
 4. Will read Inventor and Fusion 360 files: embedded preview
 5. Will read Siemens NX files: embedded preview

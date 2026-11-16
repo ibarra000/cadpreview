@@ -58,7 +58,9 @@ enum {
 /// Detected file format. Values are only ever appended, never renumbered.
 typedef int32_t cp_format;
 enum {
-    CP_FORMAT_UNKNOWN = 0 ///< Not a supported format.
+    CP_FORMAT_UNKNOWN = 0, ///< Not a supported format.
+    CP_FORMAT_DWG = 1,     ///< AutoCAD DWG drawing.
+    CP_FORMAT_DXF = 2      ///< AutoCAD DXF drawing (ASCII or binary).
 };
 
 /// Why a preview is a placeholder. Values are only ever appended, never renumbered.
@@ -68,7 +70,7 @@ enum {
     CP_REASON_CANNOT_OPEN = 1,          ///< The input could not be opened or read.
     CP_REASON_EMPTY_INPUT = 2,          ///< The input has no bytes.
     CP_REASON_UNKNOWN_FORMAT = 3,       ///< The content matches no supported format.
-    CP_REASON_TIER_UNAVAILABLE = 4,     ///< The forced tier does not exist for this format.
+    CP_REASON_TIER_UNAVAILABLE = 4,     ///< The forced tier cannot run here; see reason text.
     CP_REASON_TIERS_FAILED = 5,         ///< Every applicable tier failed; see reason text.
     CP_REASON_PLACEHOLDER_REQUESTED = 6 ///< The caller forced CP_TIER_PLACEHOLDER.
 };
@@ -88,6 +90,11 @@ enum {
 typedef void (*cp_log_fn)(void* user, cp_log_level level, const char* utf8_message);
 
 /// Options for cp_render_file and cp_render_memory. Pass NULL for defaults.
+///
+/// DWG vector rendering (tier 4) runs in a separate program, cadpreview-dwg, which is built
+/// from LibreDWG and licensed GPL-3.0-or-later; this library only starts it and reads its
+/// output. It is used when it is found at dwg_helper_path, or, when that is NULL, next to this
+/// library (or in ../bin relative to it). Without it, DWG tier 4 is unavailable.
 typedef struct cp_options {
     uint32_t struct_size; ///< sizeof(cp_options) as compiled by the caller.
     uint32_t size;        ///< Output edge length in pixels, 16 to 4096; 0 selects 512.
@@ -95,6 +102,9 @@ typedef struct cp_options {
     uint32_t reserved;    ///< Must be 0.
     cp_log_fn log;        ///< Optional log callback.
     void* log_user;       ///< Passed unchanged to log.
+    /// Since 0.2.0. UTF-8 path of the cadpreview-dwg helper, or NULL to look next to the
+    /// library. Read only during the call.
+    const char* dwg_helper_path;
 } cp_options;
 
 /// Opaque rendered preview. Release it with cp_preview_free.

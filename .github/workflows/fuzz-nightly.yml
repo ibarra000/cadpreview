@@ -1,0 +1,42 @@
+name: Nightly fuzzing
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VCPKG_DISABLE_METRICS: "1"
+
+jobs:
+  fuzz:
+    name: fuzz-${{ matrix.harness }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [fuzz_render, fuzz_c_api, fuzz_dxf, fuzz_dwg_preview, fuzz_image_decode, fuzz_sab]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q ninja-build
+      - name: Build fuzzers
+        run: cmake --workflow --preset linux-fuzz
+      - name: Fuzz for 20 minutes
+        run: |
+          mkdir -p "fuzz-work/${{ matrix.harness }}"
+          "build/linux-fuzz/bin/${{ matrix.harness }}" -max_total_time=1200 -timeout=10 -rss_limit_mb=2048 \
+            -artifact_prefix=fuzz-work/ "fuzz-work/${{ matrix.harness }}" corpus/synthetic
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: crashes-${{ matrix.harness }}
+          path: fuzz-work/crash-*
+          retention-days: 14

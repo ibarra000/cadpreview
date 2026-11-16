@@ -22,7 +22,12 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     cp_options options{};
     std::memcpy(&options, optionBytes.data(), sizeof(options));
     options.struct_size %= static_cast<std::uint32_t>(STRUCT_BYTES + 1);
-    options.log = nullptr; // a fuzzed function pointer would only test the caller's crash
+    // Fuzzed pointers would only test the caller's own crash, so pointer fields get valid
+    // values; a fuzzed byte picks the helper path, including one that is not UTF-8.
+    options.log = nullptr;
+    static constexpr std::array<const char*, 3> HELPER_PATHS{nullptr, "no-such-cadpreview-dwg",
+                                                             "\xFF\xFE not utf-8"};
+    options.dwg_helper_path = HELPER_PATHS.at(input[2] % HELPER_PATHS.size());
     std::memcpy(optionBytes.data(), &options, sizeof(options));
 
     const auto content = input.subspan(STRUCT_BYTES);

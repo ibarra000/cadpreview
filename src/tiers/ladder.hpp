@@ -7,10 +7,12 @@
 #include "render/image.hpp"
 
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace cadpreview {
@@ -44,8 +46,16 @@ inline constexpr std::uint32_t MIN_SIZE = 16;
 inline constexpr std::uint32_t MAX_SIZE = 4096;
 
 struct RenderOptions {
+    RenderOptions() = default;
+    // A constructor rather than aggregate initialization, so {size, tier} stays valid as
+    // members are appended (GCC and Clang warn about omitted fields in aggregates).
+    explicit RenderOptions(std::uint32_t outputSize) : size(outputSize) {}
+    RenderOptions(std::uint32_t outputSize, Tier forcedTier, std::filesystem::path helper = {})
+        : size(outputSize), tier(forcedTier), dwgHelper(std::move(helper)) {}
+
     std::uint32_t size = DEFAULT_SIZE;
     Tier tier = Tier::Auto;
+    std::filesystem::path dwgHelper; ///< empty: look for cadpreview-dwg next to the library
 };
 
 // A short-lived view handed to one tier call, so reference members are intended.
@@ -55,10 +65,12 @@ struct TierContext {
     const Detection& detection;
     std::uint32_t size;
     const Logger& log;
+    const std::filesystem::path& dwgHelper;
 };
 // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-/// Result of one tier: an image, or a display-safe failure message.
+/// Result of one tier: an image, or a display-safe failure message. A tier that cannot run at
+/// all here throws TierUnavailable instead (see common/errors.hpp).
 struct TierOutcome {
     std::optional<Image> image;
     std::string failure;
@@ -68,9 +80,17 @@ struct TierOutcome {
 using TierFunction = std::function<TierOutcome(const TierContext&)>;
 
 struct TierEntry {
+    TierEntry(Format entryFormat, Tier entryTier, TierFunction function,
+              std::string_view unavailableReason = {})
+        : format(entryFormat), tier(entryTier), run(std::move(function)),
+          unavailable(unavailableReason) {}
+
     Format format;
     Tier tier;
     TierFunction run;
+    /// Set when this build leaves the tier out (for example DWG vectors without LibreDWG). The
+    /// ladder then skips it with a warning, and forcing it reports this text.
+    std::string_view unavailable;
 };
 
 /// Immutable table of the tiers implemented for each format.

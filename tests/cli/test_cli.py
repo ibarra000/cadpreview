@@ -13,6 +13,9 @@ from typing import Any
 import pytest
 
 CLI = os.environ.get("CADPREVIEW_CLI", "")
+FAKE_HELPER = os.environ.get("CADPREVIEW_FAKE_HELPER", "")
+# Detected as DWG (AC1024) with no embedded preview, so only tier 4 can draw it.
+DWG_WITHOUT_PREVIEW = b"AC1024" + bytes(122)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 EXIT_USAGE = 2
 REQUIRED_FIELDS = {
@@ -75,6 +78,7 @@ def assert_usage_error(*args: object) -> None:
         ("input.bin", "-o", "out.png", "--colour", "red"),
         ("a.bin", "b.bin", "-o", "out.png"),
         ("input.bin", "-o"),
+        ("input.bin", "-o", "out.png", "--dwg-helper"),
     ],
 )
 def test_malformed_command_lines_are_usage_errors(args: tuple[str, ...]) -> None:
@@ -157,6 +161,26 @@ def test_size_option_sets_png_dimensions(tmp_path: Path) -> None:
 def test_forced_placeholder_tier(tmp_path: Path) -> None:
     result, _ = render_bytes(tmp_path, b"x", "--tier", "5")
     assert parse_result(result)["reason"] == "placeholder_requested"
+
+
+def test_missing_dwg_helper_makes_the_vector_tier_unavailable(tmp_path: Path) -> None:
+    missing = tmp_path / "no-such-helper"
+    result, _ = render_bytes(tmp_path, DWG_WITHOUT_PREVIEW, "--tier", "4", "--dwg-helper", missing)
+    record = parse_result(result)
+    assert record["format"] == "dwg"
+    assert record["reason"] == "tier_unavailable"
+    assert "cadpreview-dwg" in record["reason_detail"]
+
+
+@pytest.mark.skipif(not FAKE_HELPER, reason="CADPREVIEW_FAKE_HELPER is not set")
+def test_dwg_helper_option_draws_through_the_helper(tmp_path: Path) -> None:
+    result, output = render_bytes(
+        tmp_path, DWG_WITHOUT_PREVIEW, "--tier", "4", "--dwg-helper", FAKE_HELPER
+    )
+    record = parse_result(result)
+    assert record["ok"] is True
+    assert record["tier"] == 4
+    assert output.exists()
 
 
 def test_verbose_logs_go_to_stderr(tmp_path: Path) -> None:

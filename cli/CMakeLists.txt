@@ -3,7 +3,7 @@ add_executable(cadpreview_cli
     json.cpp
     main.cpp)
 if(WIN32)
-    target_sources(cadpreview_cli PRIVATE cadpreview.manifest)
+    target_sources(cadpreview_cli PRIVATE ${PROJECT_SOURCE_DIR}/resources/windows/utf8.manifest)
 endif()
 target_link_libraries(cadpreview_cli PRIVATE cadpreview)
 set_target_properties(cadpreview_cli PROPERTIES

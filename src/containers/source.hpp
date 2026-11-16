@@ -32,6 +32,9 @@ public:
     /// Fills out with the bytes at offset; false (and out unspecified) when out of range or on
     /// an I/O error.
     [[nodiscard]] virtual bool readAt(std::uint64_t offset, std::span<std::byte> out) = 0;
+
+    /// The file behind this source, for readers that can only open paths; null for memory.
+    [[nodiscard]] virtual const std::filesystem::path* filePath() const noexcept { return nullptr; }
 };
 
 /// Source over caller-owned memory, which must outlive it.
@@ -53,6 +56,14 @@ struct FileOpenResult {
 
 /// Opens a regular file for reading.
 [[nodiscard]] FileOpenResult openFile(const std::filesystem::path& path);
+
+/// Largest input a format reader loads into memory at once.
+inline constexpr std::uint64_t MAX_IN_MEMORY_INPUT = 256ULL * 1024 * 1024;
+
+/// Reads the whole source into memory. Throws FormatError when it exceeds maxBytes or cannot be
+/// read.
+[[nodiscard]] std::vector<std::byte> readAll(Source& source,
+                                             std::uint64_t maxBytes = MAX_IN_MEMORY_INPUT);
 
 /// Reads the first min(maxBytes, size) bytes; nullopt on an I/O error.
 [[nodiscard]] std::optional<std::vector<std::byte>> readPrefix(Source& source,

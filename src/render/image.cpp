@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 
 namespace cadpreview {
 
@@ -28,6 +29,31 @@ Image::Image(std::uint32_t width, std::uint32_t height, Rgba fill)
         rgba_[i + 2] = fill.b;
         rgba_[i + 3] = fill.a;
     }
+}
+
+Image Image::fromRgba(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba) {
+    const std::size_t expected =
+        static_cast<std::size_t>(checkedEdge(width)) * checkedEdge(height) * CHANNELS;
+    if (rgba.size() != expected) {
+        throw std::invalid_argument("pixel buffer size does not match the image");
+    }
+    return Image(width, height, std::move(rgba), Adopt{});
+}
+
+// Takes a buffer whose size fromRgba has already checked, so pixels are never allocated twice.
+Image::Image(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t> rgba,
+             Adopt /*tag*/) noexcept
+    : width_(width), height_(height), rgba_(std::move(rgba)) {}
+
+void Image::setPixel(std::uint32_t x, std::uint32_t y, Rgba color) {
+    if (x >= width_ || y >= height_) {
+        throw std::out_of_range("pixel outside image");
+    }
+    const std::size_t offset = (static_cast<std::size_t>(y) * width_ + x) * CHANNELS;
+    rgba_[offset] = color.r;
+    rgba_[offset + 1] = color.g;
+    rgba_[offset + 2] = color.b;
+    rgba_[offset + 3] = color.a;
 }
 
 Rgba Image::pixel(std::uint32_t x, std::uint32_t y) const {

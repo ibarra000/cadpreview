@@ -8,13 +8,16 @@
 namespace cadpreview::cli {
 
 const char* const USAGE =
-    "usage: cadpreview <input> -o <output.png> [--size N] [--tier N] [--verbose]\n"
+    "usage: cadpreview <input> -o <output.png> [--size N] [--tier N] [--dwg-helper PATH]\n"
+    "                  [--verbose]\n"
     "       cadpreview --help | --version\n"
     "\n"
     "  -o, --output PATH  PNG file to write\n"
     "  --size N           edge length in pixels, 16-4096 (default 512)\n"
     "  --tier N           0 = automatic (default); 1-5 forces a tier:\n"
     "                     1 thumbnail, 2 mesh, 3 b-rep, 4 vector, 5 placeholder\n"
+    "  --dwg-helper PATH  the cadpreview-dwg program for DWG tier 4 (default: next to the\n"
+    "                     library)\n"
     "  -v, --verbose      print library log messages to stderr\n"
     "\n"
     "Prints one JSON line describing the result. Exit status: 0 when a PNG was written\n"
@@ -40,6 +43,10 @@ std::optional<std::uint32_t> parseNumber(std::string_view text) {
 std::string applyValue(Args& args, std::string_view option, std::string_view value) {
     if (option == "-o" || option == "--output") {
         args.output = value;
+        return {};
+    }
+    if (option == "--dwg-helper") {
+        args.dwgHelper = value;
         return {};
     }
     const auto number = parseNumber(value);
@@ -69,7 +76,8 @@ std::string applyArgument(Args& args, std::string_view arg) {
 }
 
 bool takesValue(std::string_view arg) {
-    return arg == "-o" || arg == "--output" || arg == "--size" || arg == "--tier";
+    return arg == "-o" || arg == "--output" || arg == "--size" || arg == "--tier" ||
+           arg == "--dwg-helper";
 }
 
 } // namespace

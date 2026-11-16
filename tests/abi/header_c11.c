@@ -5,8 +5,9 @@
 #include <string.h>
 
 #if UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
-_Static_assert(sizeof(cp_options) == 32, "cp_options v1 layout changed");
+_Static_assert(offsetof(cp_options, dwg_helper_path) == 32, "cp_options v1 layout changed");
 _Static_assert(offsetof(cp_options, log) == 16, "cp_options v1 layout changed");
+_Static_assert(sizeof(cp_options) == 40, "cp_options v2 layout changed");
 _Static_assert(sizeof(struct cp_preview_info) == 72, "cp_preview_info v1 layout changed");
 _Static_assert(offsetof(struct cp_preview_info, render_time_us) == 32,
                "cp_preview_info layout changed");

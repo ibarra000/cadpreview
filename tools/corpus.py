@@ -19,6 +19,7 @@ import logging
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path, PurePosixPath
@@ -28,8 +29,17 @@ LOG = logging.getLogger("corpus")
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO / "corpus" / "manifest.csv"
 SYNTHETIC = "synthetic"
-ORIGINS = frozenset({"self-made", "open-license", SYNTHETIC})
-FILE_DIRS = frozenset({"files", SYNTHETIC})
+# Vendor sample files are used locally with the owner's approval but never committed (the
+# directory is gitignored), so the manifest lists them and they may be absent.
+VENDOR = "vendor-sample"
+ORIGINS = frozenset({"self-made", "open-license", SYNTHETIC, VENDOR})
+DIRECTORY_OF_ORIGIN = {
+    "self-made": "files",
+    "open-license": "files",
+    SYNTHETIC: SYNTHETIC,
+    VENDOR: "vendor",
+}
+FILE_DIRS = frozenset(DIRECTORY_OF_ORIGIN.values())
 LFS_HEADER = b"version https://git-lfs.github.com/spec/v1\n"
 LFS_POINTER_MAX = 1024
 HASH_CHUNK = 1 << 20
@@ -60,6 +70,10 @@ class Entry:
     @property
     def is_synthetic(self) -> bool:
         return self.origin == SYNTHETIC
+
+    @property
+    def may_be_absent(self) -> bool:
+        return self.origin == VENDOR
 
 
 COLUMNS = tuple(f.name for f in fields(Entry))
@@ -112,9 +126,10 @@ def check_path(entry: Entry) -> list[str]:
     if not entry.path or path.is_absolute() or "\\" in entry.path or ".." in path.parts:
         return [f"path {entry.path!r} must be relative, use '/', and stay inside corpus/"]
     if len(path.parts) < 2 or path.parts[0] not in FILE_DIRS:
-        return [f"path {entry.path!r} must start with files/ or synthetic/"]
-    if (path.parts[0] == SYNTHETIC) != entry.is_synthetic:
-        return ["synthetic files live in synthetic/ and nothing else does"]
+        return [f"path {entry.path!r} must start with one of {sorted(FILE_DIRS)}/"]
+    expected = DIRECTORY_OF_ORIGIN.get(entry.origin)
+    if expected is not None and path.parts[0] != expected:
+        return [f"{entry.origin} files live in {expected}/"]
     return []
 
 
@@ -128,6 +143,8 @@ def check_origin(entry: Entry) -> list[str]:
         errors.append("open-license files need an http(s) source URL")
     if entry.is_synthetic and not entry.source:
         errors.append("synthetic files need a source (spec section or generator)")
+    if entry.origin == VENDOR and not URL_RE.match(entry.source):
+        errors.append("vendor samples need the http(s) URL they were downloaded from")
     return errors
 
 
@@ -168,7 +185,7 @@ def check_file(entry: Entry, corpus_dir: Path) -> list[str]:
     except ValueError as error:
         return [str(error)]
     if not file.is_file():
-        return [f"file {entry.path} is missing"]
+        return [] if entry.may_be_absent else [f"file {entry.path} is missing"]
     content = read_content(file, lfs_allowed(entry))
     errors = []
     if entry.size_bytes.isdigit() and int(entry.size_bytes) != content.size:
@@ -312,10 +329,15 @@ def run_corpus(
     errors += [f"{entry.path}: {e}" for _, entry in entries for e in check_path(entry)]
     if errors:
         raise ValueError("; ".join(errors))
+    present = [
+        entry
+        for _, entry in entries
+        if not (entry.may_be_absent and not (manifest.parent / entry.path).is_file())
+    ]
     return [
         run_one(cli, manifest.parent, entry, tier=tier, size=size, timeout=timeout, out_dir=out_dir)
         for tier in tiers
-        for _, entry in entries
+        for entry in present
     ]
 
 
@@ -353,6 +375,73 @@ def write_report(results: Sequence[RunResult], out_dir: Path) -> str:
     return summary
 
 
+@dataclass(frozen=True)
+class NewEntry:
+    """Fields for `add` that are the same for every file in one call."""
+
+    origin: str
+    source: str
+    license: str
+    contributor: str = ""
+    software: str = ""
+    format: str = ""
+    notes: str = ""
+
+
+def detect_with_cli(cli: Sequence[str], file: Path) -> tuple[str, str]:
+    """(format, version) as the cadpreview CLI reports them, without keeping the image."""
+    with tempfile.TemporaryDirectory(prefix="cadpreview-add-") as scratch:
+        output = Path(scratch) / "probe.png"
+        command = [*cli, str(file), "-o", str(output), "--tier", "5", "--size", "16"]
+        proc = subprocess.run(command, capture_output=True, timeout=120, check=False)
+    lines = proc.stdout.decode("utf-8", "replace").strip().splitlines()
+    record = json.loads(lines[-1]) if proc.returncode == 0 and lines else {}
+    return str(record.get("format", "unknown")), str(record.get("version") or "")
+
+
+def add_entries(
+    manifest: Path, files: Sequence[Path], new: NewEntry, cli: Sequence[str] | None = None
+) -> list[str]:
+    """Appends one manifest row per file; returns the corpus-relative paths added."""
+    entries, errors = read_manifest(manifest)
+    if errors:
+        raise ValueError("; ".join(errors))
+    corpus_dir = manifest.parent.resolve()
+    listed = {entry.path for _, entry in entries}
+    rows: list[Entry] = []
+    for file in files:
+        resolved = file.resolve()
+        if not resolved.is_file() or not resolved.is_relative_to(corpus_dir):
+            raise ValueError(f"{file} is not a file inside {corpus_dir}")
+        relative = resolved.relative_to(corpus_dir).as_posix()
+        if relative in listed:
+            raise ValueError(f"{relative} is already listed")
+        fmt, version = detect_with_cli(cli, resolved) if cli else (new.format or "unknown", "")
+        content = read_content(resolved, relative.startswith("files/"))
+        rows.append(
+            Entry(
+                relative,
+                new.format or fmt,
+                new.software,
+                version,
+                str(content.size),
+                content.sha256,
+                new.origin,
+                new.contributor,
+                new.license,
+                new.source,
+                datetime.date.today().isoformat(),
+                new.notes,
+            )
+        )
+        listed.add(relative)
+    with manifest.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        for entry in rows:
+            writer.writerow([getattr(entry, column) for column in COLUMNS])
+    return [entry.path for entry in rows]
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -373,16 +462,45 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="do not fail when Git LFS objects are missing and files are skipped",
     )
+    add = commands.add_parser("add", help="append manifest rows for new corpus files")
+    add.add_argument("files", nargs="+", type=Path)
+    add.add_argument("--origin", required=True, choices=sorted(ORIGINS))
+    add.add_argument("--source", required=True, help="URL, spec section or generator")
+    add.add_argument("--license", required=True, help="SPDX expression for the files")
+    add.add_argument("--contributor", default="")
+    add.add_argument("--software", default="", help="application and version that wrote them")
+    add.add_argument("--format", default="", help="format id; default: what --cli detects")
+    add.add_argument("--notes", default="")
+    add.add_argument("--cli", type=Path, help="cadpreview executable, to detect format/version")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.command == "add":
+        new = NewEntry(
+            args.origin,
+            args.source,
+            args.license,
+            args.contributor,
+            args.software,
+            args.format,
+            args.notes,
+        )
+        try:
+            added = add_entries(
+                args.manifest, args.files, new, [str(args.cli)] if args.cli else None
+            )
+        except ValueError as error:
+            LOG.error("%s", error)
+            return 1
+        LOG.info("added %d file(s): %s", len(added), ", ".join(added))
+        return 0
     if args.command == "validate":
         errors = validate(args.manifest)
-        for error in errors:
-            LOG.error(error)
+        for problem in errors:
+            LOG.error(problem)
         LOG.info("manifest %s: %s", args.manifest.name, "invalid" if errors else "valid")
         return 1 if errors else 0
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")

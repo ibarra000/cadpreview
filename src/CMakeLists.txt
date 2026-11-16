@@ -8,16 +8,43 @@ add_library(cadpreview_core STATIC
     common/utf8.cpp
     containers/source.cpp
     formats/detect.cpp
+    formats/dwg/helper.cpp
+    formats/dwg/preview.cpp
+    formats/dxf/document.cpp
+    formats/dxf/entities.cpp
+    formats/dxf/text.cpp
+    formats/dxf/tokenizer.cpp
     formats/format.cpp
+    platform/module_path.cpp
+    render/compose.cpp
+    render/decode/dib.cpp
+    render/decode/png_decode.cpp
     render/font5x7.cpp
     render/image.cpp
     render/png.cpp
     render/text.cpp
+    render/vector/cairo_renderer.cpp
+    render/vector/drawing.cpp
+    render/vector/geometry.cpp
+    render/vector/projection.cpp
+    tiers/dwg_tiers.cpp
+    tiers/dxf_tiers.cpp
     tiers/ladder.cpp
     tiers/pipeline.cpp
-    tiers/placeholder.cpp)
+    tiers/placeholder.cpp
+    tiers/vector_tier.cpp)
+if(WIN32)
+    target_sources(cadpreview_core PRIVATE platform/process_windows.cpp)
+else()
+    target_sources(cadpreview_core PRIVATE platform/process_posix.cpp)
+    target_link_libraries(cadpreview_core PRIVATE ${CMAKE_DL_LIBS}) # dladdr
+endif()
 target_include_directories(cadpreview_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(cadpreview_core PRIVATE PNG::PNG)
+# cairo before libpng: static archives are searched in order on Linux, and CMake drops the
+# later duplicate of PNG::PNG that cadpreview_cairo lists after libcairo.a.
+target_link_libraries(cadpreview_core PRIVATE cadpreview_cairo PNG::PNG)
+cadpreview_embed_file(cadpreview_core
+    ${PROJECT_SOURCE_DIR}/resources/fonts/NotoSans-CadPreview.ttf embeddedFont)
 set_target_properties(cadpreview_core PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON

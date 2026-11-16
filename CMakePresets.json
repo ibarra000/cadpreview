@@ -17,7 +17,8 @@
         "CMAKE_COMPILE_WARNING_AS_ERROR": "ON",
         "CMAKE_LINK_WARNING_AS_ERROR": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
-        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_OVERLAY_PORTS": "${sourceDir}/ports"
       }
     },
     {
@@ -32,7 +33,7 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
         "CADPREVIEW_BUILD_DOTNET_TESTS": "ON"
       }
     },
@@ -60,7 +61,7 @@
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CADPREVIEW_SANITIZE": "address",
         "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-asan"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-asan"
       }
     },
     {
@@ -68,7 +69,16 @@
       "displayName": "Windows ARM64 Release (MSVC, native)",
       "inherits": "win-release",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md"
+        "VCPKG_TARGET_TRIPLET": "arm64-windows-static"
+      }
+    },
+    {
+      "name": "win-release-dwg",
+      "displayName": "Windows x64 Release with LibreDWG (GPL build)",
+      "inherits": "win-release",
+      "cacheVariables": {
+        "CADPREVIEW_BUILD_DWG_HELPER": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;dwg"
       }
     },
     {
@@ -133,6 +143,16 @@
       }
     },
     {
+      "name": "linux-debug-dwg",
+      "displayName": "Linux Debug with LibreDWG (GPL build)",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "CADPREVIEW_BUILD_DWG_HELPER": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;dwg",
+        "CADPREVIEW_BUILD_DOTNET_TESTS": "OFF"
+      }
+    },
+    {
       "name": "linux-fuzz",
       "displayName": "Linux libFuzzer (Clang)",
       "inherits": "linux-base",
@@ -190,8 +210,20 @@
       "configurePreset": "linux-fuzz",
       "targets": [
         "fuzz_render",
-        "fuzz_c_api"
+        "fuzz_c_api",
+        "fuzz_dxf",
+        "fuzz_dwg_preview",
+        "fuzz_image_decode",
+        "fuzz_sab"
       ]
+    },
+    {
+      "name": "win-release-dwg",
+      "configurePreset": "win-release-dwg"
+    },
+    {
+      "name": "linux-debug-dwg",
+      "configurePreset": "linux-debug-dwg"
     }
   ],
   "testPresets": [
@@ -257,6 +289,16 @@
       "name": "linux-clang",
       "inherits": "test-base",
       "configurePreset": "linux-clang"
+    },
+    {
+      "name": "win-release-dwg",
+      "inherits": "test-base",
+      "configurePreset": "win-release-dwg"
+    },
+    {
+      "name": "linux-debug-dwg",
+      "inherits": "test-base",
+      "configurePreset": "linux-debug-dwg"
     }
   ],
   "workflowPresets": [
@@ -423,6 +465,40 @@
         {
           "type": "build",
           "name": "linux-fuzz"
+        }
+      ]
+    },
+    {
+      "name": "win-release-dwg",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-release-dwg"
+        },
+        {
+          "type": "build",
+          "name": "win-release-dwg"
+        },
+        {
+          "type": "test",
+          "name": "win-release-dwg"
+        }
+      ]
+    },
+    {
+      "name": "linux-debug-dwg",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-debug-dwg"
+        },
+        {
+          "type": "build",
+          "name": "linux-debug-dwg"
+        },
+        {
+          "type": "test",
+          "name": "linux-debug-dwg"
         }
       ]
     }

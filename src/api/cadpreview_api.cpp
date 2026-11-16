@@ -30,14 +30,16 @@ using cadpreview::Tier;
 static_assert(static_cast<int>(Tier::Placeholder) == CP_TIER_PLACEHOLDER);
 static_assert(static_cast<int>(Tier::Vector) == CP_TIER_VECTOR);
 static_assert(static_cast<int>(Format::Unknown) == CP_FORMAT_UNKNOWN);
+static_assert(static_cast<int>(Format::Dwg) == CP_FORMAT_DWG);
+static_assert(static_cast<int>(Format::Dxf) == CP_FORMAT_DXF);
 static_assert(static_cast<int>(Reason::PlaceholderRequested) == CP_REASON_PLACEHOLDER_REQUESTED);
 static_assert(static_cast<int>(Reason::TiersFailed) == CP_REASON_TIERS_FAILED);
 static_assert(static_cast<int>(cadpreview::LogLevel::Error) == CP_LOG_ERROR);
 static_assert(std::is_same_v<cadpreview::LogCallback, cp_log_fn>);
 
-// Version-1 sizes are the smallest struct_size ever accepted. When a field is appended, replace
-// sizeof with offsetof(last v1 field) + its size so that old callers keep working.
-constexpr std::size_t OPTIONS_V1_SIZE = sizeof(cp_options);
+// Version-1 sizes are the smallest struct_size ever accepted. When a field is appended, the v1
+// size becomes the offset of the first appended field, so that old callers keep working.
+constexpr std::size_t OPTIONS_V1_SIZE = offsetof(cp_options, dwg_helper_path);
 constexpr std::size_t PREVIEW_INFO_V1_SIZE = sizeof(struct cp_preview_info);
 constexpr std::size_t FORMAT_INFO_V1_SIZE = sizeof(cp_format_info);
 constexpr std::uint32_t MAX_STRUCT_SIZE = 4096;
@@ -89,6 +91,11 @@ void copyOut(T& out, std::uint32_t declared, const T& value) noexcept {
     out.struct_size = static_cast<std::uint32_t>(filled);
 }
 
+// True when a caller's declared struct size includes the whole field at offset.
+constexpr bool coversField(std::uint32_t declared, std::size_t offset, std::size_t size) noexcept {
+    return declared >= offset + size;
+}
+
 struct ParsedOptions {
     cadpreview::RenderOptions render;
     cadpreview::Logger log;
@@ -104,11 +111,24 @@ std::optional<ParsedOptions> parseOptions(const cp_options* opts) noexcept {
         copy.tier > CP_TIER_PLACEHOLDER) {
         return std::nullopt;
     }
+    // A size ending inside an appended field copied only part of it; for a pointer that would
+    // be a wild address, so the field counts as absent.
+    if (!coversField(copy.struct_size, offsetof(cp_options, dwg_helper_path),
+                     sizeof(copy.dwg_helper_path))) {
+        copy.dwg_helper_path = nullptr;
+    }
     const std::uint32_t size = copy.size == 0 ? cadpreview::DEFAULT_SIZE : copy.size;
     if (size < cadpreview::MIN_SIZE || size > cadpreview::MAX_SIZE) {
         return std::nullopt;
     }
-    parsed.render = {size, static_cast<Tier>(copy.tier)};
+    parsed.render.size = size;
+    parsed.render.tier = static_cast<Tier>(copy.tier);
+    if (copy.dwg_helper_path != nullptr) {
+        if (!cadpreview::isValidUtf8(copy.dwg_helper_path)) {
+            return std::nullopt;
+        }
+        parsed.render.dwgHelper = cadpreview::pathFromUtf8(copy.dwg_helper_path);
+    }
     parsed.log = cadpreview::Logger(copy.log, copy.log_user);
     return parsed;
 }
