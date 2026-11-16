@@ -2,11 +2,10 @@
 // solids that tier 4 cannot draw. Group codes follow the published DXF Reference.
 #include "common/errors.hpp"
 #include "common/log.hpp"
+#include "dxf_text.hpp"
 #include "formats/dxf/document.hpp"
 #include "formats/dxf/entities.hpp"
 #include "tiers/pipeline.hpp"
-
-#include "dxf_text.hpp"
 
 #include <gtest/gtest.h>
 
@@ -30,12 +29,13 @@ Drawing drawingOf(const std::string& text, const ConvertLimits& limits = {}) {
 }
 
 Pairs line3(Point3 a, Point3 b) {
-    return {{0, "LINE"},     {8, "0"},        {10, num(a.x)}, {20, num(a.y)},
-            {30, num(a.z)},  {11, num(b.x)},  {21, num(b.y)}, {31, num(b.z)}};
+    return {{0, "LINE"},    {8, "0"},       {10, num(a.x)}, {20, num(a.y)},
+            {30, num(a.z)}, {11, num(b.x)}, {21, num(b.y)}, {31, num(b.z)}};
 }
 
 Pairs vertex(Point3 p, int flags) {
-    return {{0, "VERTEX"}, {10, num(p.x)}, {20, num(p.y)}, {30, num(p.z)}, {70, std::to_string(flags)}};
+    return {
+        {0, "VERTEX"}, {10, num(p.x)}, {20, num(p.y)}, {30, num(p.z)}, {70, std::to_string(flags)}};
 }
 
 Pairs faceRecord(std::array<int, 4> indices) {
@@ -70,8 +70,8 @@ Pairs squareVertices() {
 }
 
 TEST(Entities3d, LinesWithDepthBecomeWires) {
-    const Drawing drawing = drawingOf(file({section(
-        "ENTITIES", concat({line3({0, 0, 0}, {0, 0, 5}), line3({0, 0, 0}, {4, 0, 0})}))}));
+    const Drawing drawing = drawingOf(file(
+        {section("ENTITIES", concat({line3({0, 0, 0}, {0, 0, 5}), line3({0, 0, 0}, {4, 0, 0})}))}));
     ASSERT_EQ(drawing.wires.size(), 1U);
     EXPECT_DOUBLE_EQ(drawing.wires[0].points[1].z, 5);
     EXPECT_FALSE(drawing.wires[0].body);
@@ -79,9 +79,9 @@ TEST(Entities3d, LinesWithDepthBecomeWires) {
 }
 
 TEST(Entities3d, ThreeDPolylineKeepsDepthAndClosure) {
-    const Drawing drawing = drawingOf(file({section(
-        "ENTITIES", concat({polylineHead(9 /* 3D, closed */), vertex({0, 0, 0}, 32), vertex({1, 0, 2}, 32),
-                            vertex({1, 1, 4}, 32), seqend()}))}));
+    const Drawing drawing = drawingOf(file(
+        {section("ENTITIES", concat({polylineHead(9 /* 3D, closed */), vertex({0, 0, 0}, 32),
+                                     vertex({1, 0, 2}, 32), vertex({1, 1, 4}, 32), seqend()}))}));
     ASSERT_EQ(drawing.wires.size(), 1U);
     EXPECT_TRUE(drawing.wires[0].closed);
     ASSERT_EQ(drawing.wires[0].points.size(), 3U);
@@ -93,7 +93,9 @@ TEST(Entities3d, PolygonMeshDrawsRowsAndColumns) {
     Pairs mesh = polylineHead(48, 2, 3); // polygon mesh (16), closed in the N direction (32)
     for (int m = 0; m < 2; ++m) {
         for (int n = 0; n < 3; ++n) {
-            mesh = concat({mesh, vertex({static_cast<double>(n), static_cast<double>(m), static_cast<double>(m + n)}, 64)});
+            mesh = concat({mesh, vertex({static_cast<double>(n), static_cast<double>(m),
+                                         static_cast<double>(m + n)},
+                                        64)});
         }
     }
     const Drawing drawing = drawingOf(file({section("ENTITIES", concat({mesh, seqend()}))}));
@@ -106,17 +108,17 @@ TEST(Entities3d, PolygonMeshDrawsRowsAndColumns) {
 }
 
 TEST(Entities3d, PolygonMeshWithWrongVertexCountIsSkipped) {
-    const Drawing drawing = drawingOf(file({section(
-        "ENTITIES", concat({polylineHead(16, 30000, 30000), vertex({0, 0, 0}, 64),
-                            vertex({1, 0, 1}, 64), seqend()}))}));
+    const Drawing drawing = drawingOf(
+        file({section("ENTITIES", concat({polylineHead(16, 30000, 30000), vertex({0, 0, 0}, 64),
+                                          vertex({1, 0, 1}, 64), seqend()}))}));
     EXPECT_TRUE(drawing.wires.empty());
     EXPECT_TRUE(drawing.polylines.empty());
 }
 
 TEST(Entities3d, PolyfaceMeshDrawsVisibleFaceEdges) {
-    const Drawing drawing = drawingOf(file({section(
-        "ENTITIES",
-        concat({polylineHead(64, 4, 1), squareVertices(), faceRecord({1, 2, -3, 4}), seqend()}))}));
+    const Drawing drawing =
+        drawingOf(file({section("ENTITIES", concat({polylineHead(64, 4, 1), squareVertices(),
+                                                    faceRecord({1, 2, -3, 4}), seqend()}))}));
     // Edges 1-2-3 (joined) and 4-1; the edge starting at vertex 3 is hidden (negative index).
     ASSERT_EQ(drawing.wires.size(), 2U);
     EXPECT_TRUE(drawing.wires[0].body);
@@ -139,9 +141,8 @@ TEST(Entities3d, PolyfaceFacesWithBadIndicesAreSkipped) {
 TEST(Entities3d, ConsecutiveTwoVertexFacesJoinIntoOneWire) {
     // The DWG helper writes each solid edge this way: a polyface with one face per segment.
     const Drawing drawing = drawingOf(file({section(
-        "ENTITIES",
-        concat({polylineHead(64, 4, 3), squareVertices(), faceRecord({1, 2, 0, 0}),
-                faceRecord({2, 3, 0, 0}), faceRecord({3, 4, 0, 0}), seqend()}))}));
+        "ENTITIES", concat({polylineHead(64, 4, 3), squareVertices(), faceRecord({1, 2, 0, 0}),
+                            faceRecord({2, 3, 0, 0}), faceRecord({3, 4, 0, 0}), seqend()}))}));
     ASSERT_EQ(drawing.wires.size(), 1U);
     EXPECT_EQ(drawing.wires[0].points.size(), 4U);
 }
@@ -173,8 +174,8 @@ TEST(Entities3d, WiresInBlocksMoveWithTheInsert) {
 
 TEST(Entities3d, SolidsAndSurfacesAreCountedAsUndrawn) {
     Pairs bodies;
-    for (const char* type : {"3DSOLID", "REGION", "BODY", "PLANESURFACE", "EXTRUDEDSURFACE",
-                             "MESH"}) {
+    for (const char* type :
+         {"3DSOLID", "REGION", "BODY", "PLANESURFACE", "EXTRUDEDSURFACE", "MESH"}) {
         bodies = concat({bodies, {{0, type}, {8, "0"}}});
     }
     bodies = concat({bodies, {{0, "3DSOLID"}, {8, "0"}, {60, "1"}}}); // invisible: not counted
@@ -201,8 +202,10 @@ TEST(Entities3d, VerticesAreChargedEvenWhenNothingIsDrawn) {
         vertices = concat({vertices, vertex({0, 0, 0}, 0)});
     }
     const std::string text = file({
-        section("BLOCKS", concat({{{0, "BLOCK"}, {2, "Empty"}, {10, "0"}, {20, "0"}}, vertices,
-                                  seqend(), {{0, "ENDBLK"}}})),
+        section("BLOCKS", concat({{{0, "BLOCK"}, {2, "Empty"}, {10, "0"}, {20, "0"}},
+                                  vertices,
+                                  seqend(),
+                                  {{0, "ENDBLK"}}})),
         section("ENTITIES", {{0, "INSERT"}, {2, "Empty"}, {70, "1000"}, {71, "1000"}}),
     });
     EXPECT_THROW(static_cast<void>(drawingOf(text)), FormatError);
@@ -222,7 +225,8 @@ TEST(Dxf3dTier, AWireframeOfLinesRenders) {
         box = concat({box, line3({0, 0, z}, {1, 0, z}), line3({1, 0, z}, {1, 1, z}),
                       line3({1, 1, z}, {0, 1, z}), line3({0, 1, z}, {0, 0, z})});
     }
-    for (const auto& [x, y] : std::array<std::array<double, 2>, 4>{{{0, 0}, {1, 0}, {1, 1}, {0, 1}}}) {
+    for (const auto& [x, y] :
+         std::array<std::array<double, 2>, 4>{{{0, 0}, {1, 0}, {1, 1}, {0, 1}}}) {
         box = concat({box, line3({x, y, 0}, {x, y, 1})});
     }
     const auto data = bytesOf(file({section("ENTITIES", box)}));

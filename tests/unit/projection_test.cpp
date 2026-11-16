@@ -143,7 +143,7 @@ TEST(Projection, TheTopViewKeepsTheSourceDrawingOrder) {
     Drawing drawing;
     drawing.polylines.push_back({{{0, 0}, {1, 0}}, false});
     drawing.polylines.push_back({{{2, 0}, {3, 0}}, false});
-    drawing.wires.push_back({{{9, 9, 1}, {9, 9, 2}}, false, false, 1}); // drawn between them
+    drawing.wires.push_back({{{9, 9, 1}, {9, 9, 2}}, false, false, 1});  // drawn between them
     drawing.wires.push_back({{{7, 7, 1}, {7, 7, 2}}, false, false, 99}); // order past the end
     const Drawing flat = flatten(drawing);
     ASSERT_EQ(flat.polylines.size(), 4U);

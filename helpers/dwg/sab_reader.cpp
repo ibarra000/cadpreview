@@ -228,28 +228,28 @@ Body readBody(std::span<const std::byte> data, const SabLimits& limits) {
     return body;
 }
 
-Vec3 operator+(Vec3 a, Vec3 b) {
+Vec3 operator+(const Vec3& a, const Vec3& b) {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
-Vec3 operator-(Vec3 a, Vec3 b) {
+Vec3 operator-(const Vec3& a, const Vec3& b) {
     return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
-Vec3 operator*(Vec3 a, double s) {
+Vec3 operator*(const Vec3& a, double s) {
     return {a.x * s, a.y * s, a.z * s};
 }
-double dot(Vec3 a, Vec3 b) {
+double dot(const Vec3& a, const Vec3& b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
-Vec3 cross(Vec3 a, Vec3 b) {
+Vec3 cross(const Vec3& a, const Vec3& b) {
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
-double length(Vec3 a) {
+double length(const Vec3& a) {
     return std::hypot(a.x, a.y, a.z);
 }
-bool isFinite(Vec3 a) {
+bool isFinite(const Vec3& a) {
     return std::isfinite(a.x) && std::isfinite(a.y) && std::isfinite(a.z);
 }
-std::optional<Vec3> unit(Vec3 a) {
+std::optional<Vec3> unit(const Vec3& a) {
     const double l = length(a);
     if (!(l > 0) || !std::isfinite(l)) {
         return std::nullopt;
@@ -354,7 +354,7 @@ private:
 // Samples an elliptical edge. A reversed edge runs on the negated curve parameter; the edge
 // direction is not stored where it was observed, so the variant whose ends meet the vertices
 // is used, and the chord when neither does.
-Polyline3 ellipseEdge(const Ellipse& e, Vec3 start, Vec3 end, double t0, double t1) {
+Polyline3 ellipseEdge(const Ellipse& e, const Vec3& start, const Vec3& end, double t0, double t1) {
     const double tolerance = MATCH_TOLERANCE * (1 + length(e.center) + length(e.major));
     const double forward = length(e.at(t0) - start) + length(e.at(t1) - end);
     const double reversed = length(e.at(-t0) - start) + length(e.at(-t1) - end);
@@ -390,7 +390,7 @@ std::optional<Polyline3> edgePolyline(const RecordView& edge) {
     return Polyline3{*start, *end}; // straight edges, and the chord of other curves
 }
 
-Polyline3 circle(Vec3 center, Vec3 u, Vec3 v, double radius) {
+Polyline3 circle(const Vec3& center, const Vec3& u, const Vec3& v, double radius) {
     Polyline3 points;
     points.reserve(TURN_SEGMENTS + 1);
     for (int i = 0; i <= TURN_SEGMENTS; ++i) {

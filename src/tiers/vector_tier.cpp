@@ -22,8 +22,7 @@ TierOutcome renderVectorTier(Drawing drawing, std::uint32_t size) {
     }
     TierOutcome outcome{renderDrawing(flatten(std::move(drawing)), size), {}, {}};
     if (undrawn > 0) {
-        outcome.warnings.push_back(
-            std::format("{} 3D solids or surfaces were not drawn", undrawn));
+        outcome.warnings.push_back(std::format("{} 3D solids or surfaces were not drawn", undrawn));
     }
     return outcome;
 }

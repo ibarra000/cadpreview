@@ -13,6 +13,8 @@ import struct
 import sys
 from pathlib import Path
 
+Vec3 = tuple[float, float, float]
+
 INTEGER, DOUBLE, TEXT, TRUE, FALSE, POINTER = 0x04, 0x06, 0x07, 0x0A, 0x0B, 0x0C
 IDENTIFIER, SUB_IDENTIFIER, RECORD_END, POSITION, VECTOR = 0x0D, 0x0E, 0x11, 0x13, 0x14
 
@@ -47,7 +49,7 @@ class Sab:
     def pointer(self, value: int) -> None:
         self.data += bytes([POINTER]) + struct.pack("<i", value)
 
-    def vector(self, tag: int, v: tuple[float, float, float]) -> None:
+    def vector(self, tag: int, v: Vec3) -> None:
         self.data += bytes([tag]) + struct.pack("<3d", *v)
 
     def name(self, full: str) -> None:
@@ -67,7 +69,7 @@ class Sab:
         self.integer(-1)
         self.pointer(-1)
 
-    def point(self, p: tuple[float, float, float]) -> int:
+    def point(self, p: Vec3) -> int:
         self.header("point")
         self.vector(POSITION, p)
         return self.end()
@@ -79,14 +81,14 @@ class Sab:
         self.pointer(point)
         return self.end()
 
-    def straight(self, root: tuple[float, float, float], direction: tuple[float, float, float]) -> int:
+    def straight(self, root: Vec3, direction: Vec3) -> int:
         self.header("straight-curve")
         self.vector(POSITION, root)
         self.vector(VECTOR, direction)
         self.data += bytes([FALSE, FALSE])
         return self.end()
 
-    def ellipse(self, center, normal, major, ratio: float) -> int:
+    def ellipse(self, center: Vec3, normal: Vec3, major: Vec3, ratio: float) -> int:
         self.header("ellipse-curve")
         self.vector(POSITION, center)
         self.vector(VECTOR, normal)
@@ -117,12 +119,16 @@ class Sab:
 def box_with_hole() -> bytes:
     """A 10 x 10 x 4 box's twelve edges plus a circular edge on its top face."""
     sab = Sab()
-    corners = [(x, y, z) for z in (0, 4) for (x, y) in ((0, 0), (10, 0), (10, 10), (0, 10))]
+    corners: list[Vec3] = [
+        (float(x), float(y), float(z))
+        for z in (0, 4)
+        for (x, y) in ((0, 0), (10, 0), (10, 10), (0, 10))
+    ]
     vertices = [sab.vertex(sab.point(c)) for c in corners]
 
     def segment(a: int, b: int) -> None:
         pa, pb = corners[a], corners[b]
-        curve = sab.straight(pa, tuple(q - p for p, q in zip(pa, pb)))
+        curve = sab.straight(pa, (pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]))
         sab.edge(vertices[a], 0, vertices[b], 1, curve)
 
     for i in range(4):

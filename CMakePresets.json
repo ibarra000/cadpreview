@@ -213,7 +213,8 @@
         "fuzz_c_api",
         "fuzz_dxf",
         "fuzz_dwg_preview",
-        "fuzz_image_decode"
+        "fuzz_image_decode",
+        "fuzz_sab"
       ]
     },
     {

@@ -176,14 +176,8 @@ double distance(Vec3 a, Vec3 b) {
 
 TEST(SabReader, BoxEdgesBecomeSegments) {
     Sab sab;
-    const std::array<Vec3, 8> c{{{0, 0, 0},
-                                 {1, 0, 0},
-                                 {1, 1, 0},
-                                 {0, 1, 0},
-                                 {0, 0, 1},
-                                 {1, 0, 1},
-                                 {1, 1, 1},
-                                 {0, 1, 1}}};
+    const std::array<Vec3, 8> c{
+        {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}};
     for (std::size_t i = 0; i < 4; ++i) {
         sab.segment(c.at(i), c.at((i + 1) % 4));
         sab.segment(c.at(i + 4), c.at(((i + 1) % 4) + 4));
@@ -201,8 +195,7 @@ TEST(SabReader, BoxEdgesBecomeSegments) {
 TEST(SabReader, EllipticalEdgeFollowsTheArc) {
     Sab sab;
     const int curve = sab.ellipse({0, 0, 0}, {0, 0, 1}, {2, 0, 0}, 1);
-    sab.edge(sab.vertex(sab.point({2, 0, 0})), 0, sab.vertex(sab.point({0, 2, 0})), PI / 2,
-             curve);
+    sab.edge(sab.vertex(sab.point({2, 0, 0})), 0, sab.vertex(sab.point({0, 2, 0})), PI / 2, curve);
     sab.finish();
     const auto wires = sabWireframe(sab.bytes());
     ASSERT_EQ(wires.size(), 1U);
@@ -221,8 +214,7 @@ TEST(SabReader, ReversedEdgeParametersAreNegatedOnTheCurve) {
     Sab sab;
     const int curve = sab.ellipse({0, 0, 0}, {0, 0, 1}, {2, 0, 0}, 0.5);
     // Start (0, 1, 0) is the curve at +pi/2, so the edge range -pi/2..0 runs on -t.
-    sab.edge(sab.vertex(sab.point({0, 1, 0})), -PI / 2, sab.vertex(sab.point({2, 0, 0})), 0,
-             curve);
+    sab.edge(sab.vertex(sab.point({0, 1, 0})), -PI / 2, sab.vertex(sab.point({2, 0, 0})), 0, curve);
     sab.finish();
     const auto wires = sabWireframe(sab.bytes());
     ASSERT_EQ(wires.size(), 1U);
@@ -286,8 +278,8 @@ TEST(SabReader, ParallelSphereAxesFallBackToWorldAxes) {
 TEST(SabReader, OverflowingCurvesAreDropped) {
     Sab sab;
     const int curve = sab.ellipse({0, 0, 0}, {0, 0, 1}, {1e308, 0, 0}, 1e308);
-    sab.edge(sab.vertex(sab.point({1e308, 0, 0})), 0, sab.vertex(sab.point({0, 1e308, 0})),
-             PI / 2, curve);
+    sab.edge(sab.vertex(sab.point({1e308, 0, 0})), 0, sab.vertex(sab.point({0, 1e308, 0})), PI / 2,
+             curve);
     sab.sphere({0, 0, 0}, 1e308);
     sab.finish();
     for (const Polyline3& wire : sabWireframe(sab.bytes())) {
@@ -301,10 +293,10 @@ TEST(SabReader, EdgesWithBadReferencesAreSkipped) {
     Sab sab;
     const int curve = sab.straight({0, 0, 0}, {1, 0, 0});
     const int good = sab.vertex(sab.point({0, 0, 0}));
-    sab.edge(good, 0, 999, 1, curve);                 // out of range
-    sab.edge(good, 0, -5, 1, curve);                  // negative
-    sab.edge(good, 0, curve, 1, curve);               // not a vertex
-    sab.edge(good, 0, sab.vertex(curve), 1, curve);   // vertex without a point
+    sab.edge(good, 0, 999, 1, curve);               // out of range
+    sab.edge(good, 0, -5, 1, curve);                // negative
+    sab.edge(good, 0, curve, 1, curve);             // not a vertex
+    sab.edge(good, 0, sab.vertex(curve), 1, curve); // vertex without a point
     sab.segment({0, 0, 0}, {0, 0, 1});
     sab.finish();
     EXPECT_EQ(sabWireframe(sab.bytes()).size(), 1U);

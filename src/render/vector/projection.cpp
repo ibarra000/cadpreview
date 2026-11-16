@@ -67,8 +67,7 @@ void projectPlanContent(Drawing& drawing) {
         polyline.points = projectAll(onGround(polyline.points), View::Isometric);
     }
     for (const Arc& arc : drawing.arcs) {
-        drawing.polylines.push_back(
-            {projectAll(onGround(arcPoints(arc)), View::Isometric), false});
+        drawing.polylines.push_back({projectAll(onGround(arcPoints(arc)), View::Isometric), false});
     }
     drawing.arcs.clear();
     for (TextItem& text : drawing.texts) {
