@@ -30,5 +30,8 @@ cadpreview_add_fuzz_harness(fuzz_render fuzz_render.cpp)
 cadpreview_add_fuzz_harness(fuzz_dxf fuzz_dxf.cpp)
 cadpreview_add_fuzz_harness(fuzz_dwg_preview fuzz_dwg_preview.cpp)
 cadpreview_add_fuzz_harness(fuzz_image_decode fuzz_image_decode.cpp)
+# The DWG helper's SAB reader has no LibreDWG dependency, so it is fuzzed in every build.
+cadpreview_add_fuzz_harness(fuzz_sab fuzz_sab.cpp ${PROJECT_SOURCE_DIR}/helpers/dwg/sab_reader.cpp)
+target_include_directories(fuzz_sab PRIVATE ${PROJECT_SOURCE_DIR}/helpers/dwg)
 cadpreview_add_fuzz_harness(fuzz_c_api fuzz_c_api.cpp ${PROJECT_SOURCE_DIR}/src/api/cadpreview_api.cpp)
 target_compile_definitions(fuzz_c_api PRIVATE CADPREVIEW_BUILD)

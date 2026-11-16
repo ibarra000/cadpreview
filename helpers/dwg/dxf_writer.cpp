@@ -61,6 +61,11 @@ void DxfWriter::point(int xCode, double x, double y) {
     number(xCode + 10, y);
 }
 
+void DxfWriter::point(int xCode, double x, double y, double z) {
+    point(xCode, x, y);
+    number(xCode + 20, z);
+}
+
 void DxfWriter::longText(std::string_view text) {
     std::string paragraphs;
     for (const char c : text) {

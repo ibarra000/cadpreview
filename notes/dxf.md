@@ -82,7 +82,45 @@ line spacing of 5/3 of the height. It does not wrap to the reference width.
 character.
 **Status:** spec. The embedded font has no ⌀ (U+2300), so `%%c` is drawn as Ø (U+00D8).
 
+## 3d
+
+**Claim:** 3D content is stored as follows.
+- Points carry z in the group code 20 above x (30 for 10, 31 for 11, and so on).
+- POLYLINE group 70 bits: 1 closed (the M direction for meshes), 8 3D polyline, 16 polygon
+  mesh, 32 mesh closed in the N direction, 64 polyface mesh.
+- A polygon mesh lists M × N vertices (groups 71 and 72) row by row.
+- A polyface mesh lists its coordinate VERTEX records (group 70 bits 64 and 128) first, then
+  face records (bit 128 only) whose groups 71-74 hold 1-based vertex indices. A negative
+  index hides the edge that starts at that vertex. Two indices make a single edge.
+- 3DSOLID, REGION, BODY and the *SURFACE entities hold ACIS data; MESH holds a subdivision
+  mesh.
+**Status:** spec (DXF Reference, "POLYLINE", "VERTEX", "3DFACE", "3DSOLID").
+**Evidence:** `tests/unit/dxf3d_test.cpp`; `corpus/synthetic/dxf/box-3d.dxf`.
+
+How tier 4 uses them (`src/formats/dxf/entities.cpp`, `src/render/vector/projection.cpp`):
+- Lines and faces without depth stay 2D. With depth they become 3D wires, as do 3D polylines.
+- Mesh rows, columns and visible face edges become wires marked as body edges.
+- ACIS bodies and MESH entities in DXF are not read; they are counted, so a drawing holding
+  only them fails with "the drawing holds only 3D solids or surfaces (N)", and a drawing that
+  has other content gets a warning.
+- Consecutive polyface edges that continue where the previous edge ended are joined into one
+  wire. The DWG helper writes each solid edge as a polyface with one two-vertex face per
+  segment, so an edge costs one wire.
+- Every VERTEX of a POLYLINE counts toward the work limit, even when nothing is drawn.
+- Block transforms are 2D: they move x and y and keep z. Z scale (group 43), insertion z and
+  extrusion directions (group 210) are ignored, so mirrored or z-scaled inserts are drawn as if
+  unscaled.
+- The view is the top view unless body edges have a depth over 1% of the drawing's plan size;
+  then it is the south-east isometric view, with 2D content placed at z = 0. Lines alone never
+  tilt the view, because 2D drawings often carry stray z values (the `tablet` sample has 3002
+  lines at z = -0.1).
+- In the top view wires are drawn in file order, so 2D drawings render byte for byte as before.
+- Drawings with over 50,000 arcs stay in the top view, since the isometric view turns each arc
+  into a polyline.
+- Models drawn only with 3D lines, 3D faces or 3D polylines (no meshes or solids) stay in the
+  top view. This is deliberate, so stray z values cannot tilt a 2D drawing.
+
 ## fixtures
 
-`tools/make_dxf_fixtures.py corpus/synthetic/dxf` regenerates both fixtures byte for byte.
+`tools/make_dxf_fixtures.py corpus/synthetic/dxf` regenerates the fixtures byte for byte.
 Change it and the manifest rows together.

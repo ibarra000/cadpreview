@@ -27,6 +27,7 @@ if(CADPREVIEW_PYTHON_TESTS)
 endif()
 
 add_library(cadpreview_test_support STATIC
+    support/dxf_text.cpp
     support/png_decode.cpp
     support/temp_dir.cpp)
 target_include_directories(cadpreview_test_support PUBLIC support)
@@ -47,6 +48,7 @@ add_executable(cadpreview_unit_tests
     unit/detect_test.cpp
     unit/dwg_test.cpp
     unit/dxf_test.cpp
+    unit/dxf3d_test.cpp
     unit/dxf_writer_test.cpp
     unit/geometry_test.cpp
     unit/ladder_test.cpp
@@ -54,16 +56,21 @@ add_executable(cadpreview_unit_tests
     unit/pipeline_test.cpp
     unit/process_test.cpp
     unit/placeholder_test.cpp
+    unit/projection_test.cpp
     unit/render_test.cpp
+    unit/sab_reader_test.cpp
     unit/source_test.cpp
     unit/utf8_test.cpp
     unit/vector_test.cpp)
-# The DWG helper's DXF writer has no dependencies (in particular no LibreDWG), so it is tested
-# here against the library's DXF reader.
-target_sources(cadpreview_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/helpers/dwg/dxf_writer.cpp)
+# The DWG helper's DXF writer and SAB reader have no dependencies (in particular no LibreDWG), so
+# they are tested here; the writer against the library's DXF reader.
+target_sources(cadpreview_unit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/helpers/dwg/dxf_writer.cpp
+    ${PROJECT_SOURCE_DIR}/helpers/dwg/sab_reader.cpp)
 target_include_directories(cadpreview_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/helpers/dwg)
 target_compile_definitions(cadpreview_unit_tests PRIVATE
-    CADPREVIEW_FAKE_HELPER="$<TARGET_FILE:cadpreview_fake_helper>")
+    CADPREVIEW_FAKE_HELPER="$<TARGET_FILE:cadpreview_fake_helper>"
+    CADPREVIEW_CORPUS_DIR="${PROJECT_SOURCE_DIR}/corpus")
 add_dependencies(cadpreview_unit_tests cadpreview_fake_helper)
 target_link_libraries(cadpreview_unit_tests PRIVATE
     cadpreview_core cadpreview_test_support GTest::gtest GTest::gtest_main)

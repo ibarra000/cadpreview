@@ -19,6 +19,26 @@ struct Polyline {
     bool closed = false;
 };
 
+/// A 3D point in drawing (world) units; z points towards the viewer of the top view.
+struct Point3 {
+    double x = 0;
+    double y = 0;
+    double z = 0;
+};
+
+/// A 3D polyline: edges of meshes, 3D polylines and solids. flatten() (projection.hpp) turns
+/// wires into polylines before rendering.
+struct Wire {
+    std::vector<Point3> points;
+    bool closed = false;
+    /// An edge of a solid, surface or mesh. Only these switch the view to isometric, since 2D
+    /// drawings often carry lines and faces with stray z values.
+    bool body = false;
+    /// Drawing order: the number of polylines drawn before this wire in the source, so the top
+    /// view keeps the file's order (and its exact pixels).
+    std::size_t order = 0;
+};
+
 /// Counter-clockwise arc from startAngle to endAngle, in radians. A full circle spans 2*pi.
 struct Arc {
     Point center;
@@ -41,14 +61,18 @@ struct TextItem {
     VAlign vAlign = VAlign::Baseline;
 };
 
-/// Format-neutral 2D content produced by the DXF and DWG readers for tier 4.
+/// Format-neutral content produced by the DXF and DWG readers for tier 4: 2D primitives in
+/// the top view, plus 3D wires.
 struct Drawing {
     std::vector<Polyline> polylines;
     std::vector<Arc> arcs;
     std::vector<TextItem> texts;
+    std::vector<Wire> wires;
+    /// Solids, surfaces and other 3D bodies that were visible but could not be drawn.
+    std::size_t undrawnBodies = 0;
 
     [[nodiscard]] std::size_t primitiveCount() const noexcept {
-        return polylines.size() + arcs.size() + texts.size();
+        return polylines.size() + arcs.size() + texts.size() + wires.size();
     }
 };
 

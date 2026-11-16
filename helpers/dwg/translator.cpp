@@ -1,8 +1,12 @@
 #include "translator.hpp"
 
+#include "sab_reader.hpp"
+
+#include <cstddef>
 #include <cstdlib>
 #include <libredwg/dwg_api.h>
 #include <numbers>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -18,6 +22,16 @@ namespace {
 
 constexpr double TO_DEGREES = 180.0 / std::numbers::pi; // DWG stores radians, DXF degrees
 constexpr unsigned LWPOLYLINE_CLOSED = 512;             // see the flag comment in LibreDWG's dwg.h
+constexpr unsigned POLYLINE_CLOSED = 1; // DXF POLYLINE group 70 bits, see notes/dxf.md#3d
+constexpr unsigned POLYLINE_3D = 8;
+constexpr unsigned POLYGON_MESH = 16;
+constexpr unsigned MESH_CLOSED_N = 32;
+constexpr unsigned POLYFACE_MESH = 64;
+constexpr unsigned VERTEX_3D = 32; // DXF VERTEX group 70 bits
+constexpr unsigned VERTEX_MESH = 64;
+constexpr unsigned VERTEX_FACE = 128;
+constexpr BITCODE_BS SAB_VERSION = 2; // ACIS data version 2 is SAB, stored unencrypted
+constexpr std::size_t MAX_POLYFACE_VERTICES = 32767; // DXF face indices are 16-bit
 
 // Every DIMENSION_* struct starts with the common dimension fields, including `block`.
 template <typename Dimension>
@@ -154,14 +168,74 @@ private:
     }
 
     void translate(const Dwg_Object& object) {
-        if (!translateCurve(object) && !translateArea(object)) {
+        if (!translateCurve(object) && !translateArea(object) && !translate3d(object)) {
             static_cast<void>(translateAnnotation(object));
         }
+    }
+
+    // 3DSOLID, REGION, BODY and the surface entities share LibreDWG's 3DSOLID fields. Only SAB
+    // (version 2) data is read; version 1 SAT data is stored with a cipher and, by the
+    // project's rule on encrypted data, is not used. Each edge is written as a polyface mesh,
+    // which marks it as part of a body for the library's view choice. Bodies that give no
+    // wireframe are written as a bare 3DSOLID record so the library can say why nothing was
+    // drawn. see notes/acis.md and notes/dwg.md#helper-protocol
+    template <class Body>
+    void translateBody(const Dwg_Object& object, const Body* body) {
+        std::vector<Polyline3> wires;
+        if (body != nullptr && body->version == SAB_VERSION && body->acis_data != nullptr &&
+            body->sab_size > 0) {
+            // Any failure, including running out of memory, loses only this body.
+            try {
+                wires = sabWireframe(std::as_bytes(std::span(body->acis_data, body->sab_size)));
+            } catch (const std::exception&) {
+                wires.clear();
+            }
+        }
+        if (wires.empty()) {
+            common(object, "3DSOLID");
+        }
+        for (const Polyline3& wire : wires) {
+            writeBodyEdges(object, wire, false);
+        }
+    }
+
+    // A polyline as a polyface mesh whose faces are two-vertex edges (see notes/dxf.md#3d);
+    // the library joins consecutive edges back into one wire. Longer polylines than the 16-bit
+    // face indices can address are left out.
+    void writeBodyEdges(const Dwg_Object& object, const Polyline3& points, bool closed) {
+        const std::size_t count = points.size();
+        if (count < 2 || count > MAX_POLYFACE_VERTICES) {
+            return;
+        }
+        const std::size_t edges = closed ? count : count - 1;
+        common(object, "POLYLINE");
+        w_->number(70, POLYFACE_MESH);
+        w_->number(71, static_cast<double>(count));
+        w_->number(72, static_cast<double>(edges));
+        for (const Vec3& p : points) {
+            w_->group(0, "VERTEX");
+            w_->point(10, p.x, p.y, p.z);
+            w_->number(70, VERTEX_MESH | VERTEX_FACE);
+        }
+        for (std::size_t i = 0; i < edges; ++i) {
+            w_->group(0, "VERTEX");
+            w_->point(10, 0, 0, 0);
+            w_->number(70, VERTEX_FACE);
+            w_->number(71, static_cast<double>(i + 1));
+            w_->number(72, static_cast<double>(((i + 1) % count) + 1));
+        }
+        w_->group(0, "SEQEND");
     }
 
     bool translateCurve(const Dwg_Object& object);
     bool translateArea(const Dwg_Object& object);
     bool translateAnnotation(const Dwg_Object& object);
+    bool translate3d(const Dwg_Object& object);
+    void translatePolyline3d(const Dwg_Object& object);
+    void translatePolyface(const Dwg_Object& object);
+    void translatePolygonMesh(const Dwg_Object& object);
+    void translateMesh(const Dwg_Object& object);
+    void writeMeshVertices(const Dwg_Object& object, Dwg_Object_Type type, unsigned flags);
     void translateLwPolyline(const Dwg_Object& object);
     void translateText(const Dwg_Object& object);
     void translateMText(const Dwg_Object& object);
@@ -182,8 +256,8 @@ bool Translator::translateCurve(const Dwg_Object& object) {
     case DWG_TYPE_LINE:
         if (const auto* line = tio.LINE; line != nullptr) {
             common(object, "LINE");
-            w_->point(10, line->start.x, line->start.y);
-            w_->point(11, line->end.x, line->end.y);
+            w_->point(10, line->start.x, line->start.y, line->start.z);
+            w_->point(11, line->end.x, line->end.y, line->end.z);
         }
         return true;
     case DWG_TYPE_CIRCLE:
@@ -243,10 +317,10 @@ bool Translator::translateArea(const Dwg_Object& object) {
     case DWG_TYPE__3DFACE:
         if (const auto* f = tio._3DFACE; f != nullptr) {
             common(object, "3DFACE");
-            w_->point(10, f->corner1.x, f->corner1.y);
-            w_->point(11, f->corner2.x, f->corner2.y);
-            w_->point(12, f->corner3.x, f->corner3.y);
-            w_->point(13, f->corner4.x, f->corner4.y);
+            w_->point(10, f->corner1.x, f->corner1.y, f->corner1.z);
+            w_->point(11, f->corner2.x, f->corner2.y, f->corner2.z);
+            w_->point(12, f->corner3.x, f->corner3.y, f->corner3.z);
+            w_->point(13, f->corner4.x, f->corner4.y, f->corner4.z);
         }
         return true;
     default:
@@ -283,6 +357,158 @@ bool Translator::translateAnnotation(const Dwg_Object& object) {
             return true;
         }
         return false;
+    }
+}
+
+// Meshes, 3D polylines, solids and surfaces. Returns false for other types.
+bool Translator::translate3d(const Dwg_Object& object) {
+    const auto& tio = object.tio.entity->tio;
+    switch (object.fixedtype) {
+    case DWG_TYPE_POLYLINE_3D:
+        translatePolyline3d(object);
+        return true;
+    case DWG_TYPE_POLYLINE_PFACE:
+        translatePolyface(object);
+        return true;
+    case DWG_TYPE_POLYLINE_MESH:
+        translatePolygonMesh(object);
+        return true;
+    case DWG_TYPE_MESH:
+        translateMesh(object);
+        return true;
+    case DWG_TYPE__3DSOLID:
+        translateBody(object, tio._3DSOLID);
+        return true;
+    case DWG_TYPE_REGION:
+        translateBody(object, tio.REGION);
+        return true;
+    case DWG_TYPE_BODY:
+        translateBody(object, tio.BODY);
+        return true;
+    case DWG_TYPE_EXTRUDEDSURFACE:
+        translateBody(object, tio.EXTRUDEDSURFACE);
+        return true;
+    case DWG_TYPE_LOFTEDSURFACE:
+        translateBody(object, tio.LOFTEDSURFACE);
+        return true;
+    case DWG_TYPE_NURBSURFACE:
+        translateBody(object, tio.NURBSURFACE);
+        return true;
+    case DWG_TYPE_PLANESURFACE:
+        translateBody(object, tio.PLANESURFACE);
+        return true;
+    case DWG_TYPE_REVOLVEDSURFACE:
+        translateBody(object, tio.REVOLVEDSURFACE);
+        return true;
+    case DWG_TYPE_SWEPTSURFACE:
+        translateBody(object, tio.SWEPTSURFACE);
+        return true;
+    default:
+        return false;
+    }
+}
+
+// VERTEX records for the owned vertices of one type: 3D, mesh or polyface coordinates.
+void Translator::writeMeshVertices(const Dwg_Object& object, Dwg_Object_Type type, unsigned flags) {
+    for (const Dwg_Object* sub = get_first_owned_subentity(&object); sub != nullptr;
+         sub = get_next_owned_subentity(&object, sub)) {
+        if (sub->fixedtype != type || sub->tio.entity == nullptr) {
+            continue;
+        }
+        // VERTEX_MESH and VERTEX_PFACE are typedefs of VERTEX_3D in LibreDWG.
+        if (const Dwg_Entity_VERTEX_3D* v = sub->tio.entity->tio.VERTEX_3D; v != nullptr) {
+            w_->group(0, "VERTEX");
+            w_->point(10, v->point.x, v->point.y, v->point.z);
+            w_->number(70, flags);
+        }
+    }
+}
+
+void Translator::translatePolyline3d(const Dwg_Object& object) {
+    const Dwg_Entity_POLYLINE_3D* polyline = object.tio.entity->tio.POLYLINE_3D;
+    if (polyline == nullptr) {
+        return;
+    }
+    common(object, "POLYLINE");
+    w_->number(70, POLYLINE_3D | (polyline->flag & POLYLINE_CLOSED));
+    writeMeshVertices(object, DWG_TYPE_VERTEX_3D, VERTEX_3D);
+    w_->group(0, "SEQEND");
+}
+
+void Translator::translatePolygonMesh(const Dwg_Object& object) {
+    const Dwg_Entity_POLYLINE_MESH* mesh = object.tio.entity->tio.POLYLINE_MESH;
+    if (mesh == nullptr) {
+        return;
+    }
+    common(object, "POLYLINE");
+    w_->number(70, POLYGON_MESH | (mesh->flag & (POLYLINE_CLOSED | MESH_CLOSED_N)));
+    w_->number(71, mesh->num_m_verts);
+    w_->number(72, mesh->num_n_verts);
+    writeMeshVertices(object, DWG_TYPE_VERTEX_MESH, VERTEX_MESH);
+    w_->group(0, "SEQEND");
+}
+
+// Coordinates first, then the faces, as DXF lists them; see notes/dxf.md#3d.
+void Translator::translatePolyface(const Dwg_Object& object) {
+    if (object.tio.entity->tio.POLYLINE_PFACE == nullptr) {
+        return;
+    }
+    common(object, "POLYLINE");
+    w_->number(70, POLYFACE_MESH);
+    writeMeshVertices(object, DWG_TYPE_VERTEX_PFACE, VERTEX_MESH | VERTEX_FACE);
+    for (const Dwg_Object* sub = get_first_owned_subentity(&object); sub != nullptr;
+         sub = get_next_owned_subentity(&object, sub)) {
+        const Dwg_Entity_VERTEX_PFACE_FACE* face =
+            sub->fixedtype == DWG_TYPE_VERTEX_PFACE_FACE && sub->tio.entity != nullptr
+                ? sub->tio.entity->tio.VERTEX_PFACE_FACE
+                : nullptr;
+        if (face == nullptr) {
+            continue;
+        }
+        w_->group(0, "VERTEX");
+        w_->point(10, 0, 0, 0);
+        w_->number(70, VERTEX_FACE);
+        int code = 71;
+        for (const BITCODE_BSd index : face->vertind) {
+            w_->number(code++, index);
+        }
+    }
+    w_->group(0, "SEQEND");
+}
+
+// A subdivision mesh at level 0: its edges, or the outlines of its faces when it lists no
+// edges. The face list is a count followed by that many vertex indices, repeated.
+void Translator::translateMesh(const Dwg_Object& object) {
+    const Dwg_Entity_MESH* mesh = object.tio.entity->tio.MESH;
+    if (mesh == nullptr || mesh->vertex == nullptr) {
+        return;
+    }
+    const auto vertexAt = [mesh](BITCODE_BL i) {
+        return Vec3{mesh->vertex[i].x, mesh->vertex[i].y, mesh->vertex[i].z};
+    };
+    for (BITCODE_BL i = 0; mesh->edges != nullptr && i < mesh->num_edges; ++i) {
+        const Dwg_MESH_edge& edge = mesh->edges[i];
+        if (edge.idxfrom < mesh->num_vertex && edge.idxto < mesh->num_vertex) {
+            writeBodyEdges(object, {vertexAt(edge.idxfrom), vertexAt(edge.idxto)}, false);
+        }
+    }
+    if (mesh->num_edges > 0 || mesh->faces == nullptr) {
+        return;
+    }
+    for (BITCODE_BL i = 0; i < mesh->num_faces;) {
+        const BITCODE_BL count = mesh->faces[i++];
+        if (count > mesh->num_faces - i) {
+            return;
+        }
+        Polyline3 outline;
+        for (BITCODE_BL k = 0; k < count; ++k, ++i) {
+            if (mesh->faces[i] < mesh->num_vertex) {
+                outline.push_back(vertexAt(mesh->faces[i]));
+            }
+        }
+        if (outline.size() == count && count >= 2) {
+            writeBodyEdges(object, outline, true);
+        }
     }
 }
 

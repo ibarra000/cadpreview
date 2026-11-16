@@ -145,7 +145,7 @@ jobs:
         run: cmake --workflow --preset linux-fuzz
       - name: Fuzz each harness for 60 s
         run: |
-          for harness in fuzz_render fuzz_c_api fuzz_dxf fuzz_dwg_preview fuzz_image_decode; do
+          for harness in fuzz_render fuzz_c_api fuzz_dxf fuzz_dwg_preview fuzz_image_decode fuzz_sab; do
             mkdir -p "fuzz-work/$harness"
             "build/linux-fuzz/bin/$harness" -max_total_time=60 -timeout=10 -rss_limit_mb=2048 \
               -artifact_prefix=fuzz-work/ "fuzz-work/$harness" corpus/synthetic

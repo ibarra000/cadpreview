@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        harness: [fuzz_render, fuzz_c_api, fuzz_dxf, fuzz_dwg_preview, fuzz_image_decode]
+        harness: [fuzz_render, fuzz_c_api, fuzz_dxf, fuzz_dwg_preview, fuzz_image_decode, fuzz_sab]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

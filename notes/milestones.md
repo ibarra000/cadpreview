@@ -94,7 +94,7 @@ Corpus run `corpus.py run --cli build/win-release-dwg/bin/cadpreview.exe --tier 
 |---|---|---|---|---|---|---|---|
 | DWG | auto (0) | 17 | 17 | 0 | 0 | 100% | |
 | DWG | 1 forced | 17 | 17 | 0 | 0 | 100% | 10 / 20 |
-| DWG | 4 forced, helper installed | 17 | 15 | 0 | 0 | 88% | 42 / 392 |
+| DWG | 4 forced, helper installed | 17 | 17 | 0 | 0 | 100% (88% before 3D previews) | 42 / 392 |
 | DWG | 4 forced, no helper | 17 | 0 | 0 | 0 | 0% (tier unavailable, by design) | |
 | DXF | 1 and 4 | 2 synthetic | as expected | 0 | 0 | n/a (synthetic never counts) | |
 
@@ -102,10 +102,10 @@ All 17 tier-1 previews and a sample of the tier-4 images (floor plan, mechanical
 title block) were opened and checked by eye; all are recognizable. The one DWF sample is detected as unknown,
 as expected (DWF is out of scope).
 
-Top failure reasons: DWG tier 4 `no visible entities` (2: `visualization_-_aerial.dwg` and
-`visualization_-_sun_and_sky_demo.dwg`, whose model space holds only 3D solids and surfaces).
-DWG tier 4 misses the 90% target by one file; auto mode is unaffected because tier 1 succeeds
-on every file.
+Top failure reasons: none left for DWG. Before the 3D work, DWG tier 4 failed with `no visible
+entities` on `visualization_-_aerial.dwg` and `visualization_-_sun_and_sky_demo.dwg`, whose
+model space holds only 3D solids and surfaces, and so missed the 90% target by one file (see
+[3D previews](#3d-previews)).
 
 | Check | Result |
 |---|---|
@@ -197,6 +197,60 @@ Recorded, not fixed (low impact):
 - the helper reopens the file by path, so the prefilter has a small time-of-check gap;
 - on Linux the helper is not killed if the host itself dies.
 
+### 3D previews
+
+Owner follow-up, 2026-11-16: work with the DWG samples there are (wider version coverage is
+[issue #2](https://github.com/ibarra000/cadpreview/issues/2)), and address 3D-only drawings.
+
+- **Tier 4 keeps z** and draws 3D wires: lines and faces with depth, 3D polylines, polygon and
+  polyface meshes, and DWG subdivision meshes ([dxf.md](dxf.md#3d)).
+- **Solids and surfaces in DWG** are drawn as wireframes from their ACIS data. The helper reads
+  the SAB stream itself (`helpers/dwg/sab_reader.cpp`), since LibreDWG's SAB-to-SAT conversion
+  fails on the samples. The layout was learned from the sample bytes only
+  ([acis.md](acis.md)). Version 1 (enciphered SAT) bodies are skipped under the hard rule on
+  encrypted data; none of the samples has one.
+- **View:** the top view, unless edges of solids, surfaces or meshes have a depth over 1% of the
+  plan size; then the south-east isometric view. Lines with stray z (the `tablet` sample has
+  3002) never tilt a 2D drawing, and in the top view wires keep file order.
+- **Reasons:** a drawing that holds only bodies tier 4 cannot draw fails with "the drawing holds
+  only 3D solids or surfaces (N)" instead of "no visible entities", and undrawn bodies next to
+  other content give a warning.
+
+Results on the 17 DWG samples: tier 4 rises from 15 to 17. The two 3D files show the scene of
+their embedded thumbnails (a ground plane with boxes, a tower and a sphere; a room with
+beams), and `condominium` and `conference room` now show their 3D models as well as their 2D
+linework. Compared by SHA-256 with the previous run, 20 tier-4 images are byte-identical; the
+other five are the four visualization files and `tablet`, whose nine polyface meshes were
+skipped before and are now drawn.
+
+Independent C++ and security reviews of this work found two HIGH issues. Both are fixed, with
+tests:
+- In the isometric view, arcs became polylines without being charged, so a tiny DXF with one
+  mesh and a large block array of circles could allocate gigabytes. Drawings with over 50,000
+  arcs now stay in the top view.
+- A POLYLINE's vertices were read without being charged, so a block holding a long polyline
+  that draws nothing, inserted as a large array, could run for hours. This predates the 3D
+  work; vertices are now charged.
+
+Also fixed:
+- The SAB reader keeps 8-byte record entries and a shared value pool capped at 64 MiB, instead
+  of up to 16 values per record (a 24 MB stream could take 0.7 GB).
+- A failure while reading one body, including running out of memory, now loses only that body
+  rather than all of the helper's output.
+- Solid edges are joined back into one wire per edge.
+- Ellipses are sampled at 32 segments per turn instead of 64.
+- Points that overflow to infinity are dropped.
+- Sphere axes are made orthonormal.
+- The helper refuses polylines longer than DXF's 16-bit face indices.
+
+Known limits:
+- DXF ACIS bodies are counted, not drawn: DXF has no vendor samples to learn their (enciphered,
+  before 2013) storage from.
+- Curves other than lines and ellipses would be drawn as chords; none occur in the samples.
+- Wireframes show hidden edges.
+- Far-away 2D content still widens the view (the condominium drawing has linework 4,000 units
+  from the model).
+
 ### Decisions and deviations from the spec
 
 - **Vendor samples** (owner-approved exception to rule 5): Autodesk's published sample
@@ -217,12 +271,13 @@ Recorded, not fixed (low impact):
 
 ### Open questions for a maintainer
 
-1. **Version coverage**: the spec asks for at least three versions per format. The DWG
-   samples cover only AC1021 and AC1024, and there are no vendor DXF files. Converting files
+1. **Version coverage** ([issue #2](https://github.com/ibarra000/cadpreview/issues/2)): the
+   spec asks for at least three versions per format. The DWG samples cover only AC1021 and
+   AC1024, and there are no vendor DXF files. Converting files
    with AutoCAD would break rule 2, so more samples must come from contributors' own
    drawings or openly licensed sets (for example AC1015, AC1018, AC1027, AC1032).
-2. **3D-only drawings**: tier 4 draws 2D entities only. Solids, surfaces and meshes need the
-   tier 2/3 work from later milestones, or a wireframe fallback.
+2. **3D drawings**: tier 4 now draws wireframes (see [3D previews](#3d-previews)). Shaded
+   previews remain tier 2/3 work for later milestones, as do ACIS bodies in DXF.
 3. **Distributing the helper**: nothing ships `cadpreview-dwg` yet. Publishing a binary (for
    example as a separate GitHub release asset) carries the GPL obligation to offer its
    corresponding source, including LibreDWG's.

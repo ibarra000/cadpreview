@@ -1,5 +1,6 @@
 #include "common/errors.hpp"
 #include "common/log.hpp"
+#include "dxf_text.hpp"
 #include "formats/dxf/document.hpp"
 #include "formats/dxf/entities.hpp"
 #include "formats/dxf/tokenizer.hpp"
@@ -18,40 +19,11 @@
 namespace cadpreview::dxf {
 namespace {
 
-using Pairs = std::vector<std::pair<int, std::string>>;
-
-std::vector<std::byte> bytesOf(const std::string& text) {
-    std::vector<std::byte> bytes;
-    for (const char c : text) {
-        bytes.push_back(static_cast<std::byte>(c));
-    }
-    return bytes;
-}
-
-// Builds ASCII DXF text from group pairs, as laid out in the published DXF Reference.
-std::string dxfText(const Pairs& pairs) {
-    std::string text;
-    for (const auto& [code, value] : pairs) {
-        text += std::to_string(code) + "\n" + value + "\n";
-    }
-    return text;
-}
-
-Pairs section(const std::string& name, const Pairs& body) {
-    Pairs pairs{{0, "SECTION"}, {2, name}};
-    pairs.insert(pairs.end(), body.begin(), body.end());
-    pairs.emplace_back(0, "ENDSEC");
-    return pairs;
-}
-
-std::string file(std::initializer_list<Pairs> sections) {
-    Pairs all;
-    for (const Pairs& s : sections) {
-        all.insert(all.end(), s.begin(), s.end());
-    }
-    all.emplace_back(0, "EOF");
-    return dxfText(all);
-}
+using test::bytesOf;
+using test::concat;
+using test::file;
+using test::Pairs;
+using test::section;
 
 Pairs line(double x1, double y1, double x2, double y2, const std::string& layer = "0") {
     return {{0, "LINE"},
@@ -60,14 +32,6 @@ Pairs line(double x1, double y1, double x2, double y2, const std::string& layer 
             {20, std::to_string(y1)},
             {11, std::to_string(x2)},
             {21, std::to_string(y2)}};
-}
-
-Pairs concat(std::initializer_list<Pairs> parts) {
-    Pairs all;
-    for (const Pairs& p : parts) {
-        all.insert(all.end(), p.begin(), p.end());
-    }
-    return all;
 }
 
 Drawing drawingOf(const std::string& text, const ConvertLimits& limits = {}) {

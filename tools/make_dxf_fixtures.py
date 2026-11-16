@@ -80,11 +80,31 @@ def plate(with_thumbnail: bool) -> str:
     return text + pairs_to_text([(0, "EOF")])
 
 
+def box_3d() -> str:
+    """A 3D polyface-mesh box with a 3D polyline handle: 3D content for tier 4."""
+    corners = [(x, y, z) for z in (0, 30) for (x, y) in ((0, 0), (60, 0), (60, 40), (0, 40))]
+    faces = [(1, 2, 3, 4), (5, 6, 7, 8), (1, 2, 6, 5), (2, 3, 7, 6), (3, 4, 8, 7), (4, 1, 5, 8)]
+    entities: Pairs = [(0, "POLYLINE"), (8, "0"), (66, 1), (70, 64), (71, 8), (72, 6)]
+    for x, y, z in corners:
+        entities += [(0, "VERTEX"), (8, "0"), (10, x), (20, y), (30, z), (70, 192)]
+    for face in faces:
+        entities += [(0, "VERTEX"), (8, "0"), (10, 0), (20, 0), (30, 0), (70, 128)]
+        entities += [(71 + i, index) for i, index in enumerate(face)]
+    entities += [(0, "SEQEND"), (8, "0")]
+    entities += [(0, "POLYLINE"), (8, "0"), (66, 1), (70, 8)]
+    for x, y, z in ((20, 20, 30), (20, 20, 45), (40, 20, 45), (40, 20, 30)):
+        entities += [(0, "VERTEX"), (8, "0"), (10, x), (20, y), (30, z), (70, 32)]
+    entities += [(0, "SEQEND"), (8, "0")]
+    header: Pairs = [(9, "$ACADVER"), (1, "AC1032")]
+    return pairs_to_text(section("HEADER", header) + section("ENTITIES", entities) + [(0, "EOF")])
+
+
 def main(argv: list[str]) -> int:
     out = Path(argv[1]) if len(argv) > 1 else Path("corpus/synthetic/dxf")
     out.mkdir(parents=True, exist_ok=True)
     (out / "plate-with-thumbnail.dxf").write_bytes(plate(True).encode("ascii"))
     (out / "plate-no-thumbnail.dxf").write_bytes(plate(False).encode("ascii"))
+    (out / "box-3d.dxf").write_bytes(box_3d().encode("ascii"))
     return 0
 
 

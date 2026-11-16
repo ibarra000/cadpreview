@@ -56,6 +56,21 @@ TEST(DxfWriter, WritesSectionsThatReadBack) {
     EXPECT_DOUBLE_EQ(drawing.polylines[0].points[1].x, 9.5); // 1 - 1.5 base + 10 insertion
 }
 
+TEST(DxfWriter, ThreeDPointsReadBackAsWires) {
+    std::ostringstream out;
+    DxfWriter writer(out);
+    writer.beginSection("ENTITIES");
+    writer.group(0, "LINE");
+    writer.point(10, 1, 2, 3);
+    writer.point(11, 4, 5, -6);
+    writer.endSection();
+    writer.finish();
+    const Drawing drawing = dxf::toDrawing(readBack(out.str()));
+    ASSERT_EQ(drawing.wires.size(), 1U);
+    EXPECT_DOUBLE_EQ(drawing.wires[0].points[0].z, 3);
+    EXPECT_DOUBLE_EQ(drawing.wires[0].points[1].z, -6);
+}
+
 TEST(DxfWriter, LineBreaksInValuesCannotStartNewGroups) {
     std::ostringstream out;
     DxfWriter writer(out);

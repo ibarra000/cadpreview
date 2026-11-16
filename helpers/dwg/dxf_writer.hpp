@@ -24,6 +24,8 @@ public:
     void number(int code, double value);
     /// Writes x at xCode and y at xCode + 10.
     void point(int xCode, double x, double y);
+    /// Writes x at xCode, y at xCode + 10 and z at xCode + 20.
+    void point(int xCode, double x, double y, double z);
     /// Writes MTEXT content: line breaks become \P paragraph codes, and the text is split into
     /// group 3 chunks followed by a final group 1.
     void longText(std::string_view text);

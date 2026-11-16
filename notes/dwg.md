@@ -70,7 +70,12 @@ cadpreview picks the largest image entry. Pre-R13 files (no image seeker) are no
   - TABLES: frozen or off layers, as `LAYER` entries with group 70 = 1;
   - BLOCKS: block definitions;
   - ENTITIES: model-space entities, then paper-space entities marked with group 67 = 1.
-  Layers and blocks are named by object index (`L12`, `B40`). Values never contain line
+  Layers and blocks are named by object index (`L12`, `B40`). 3D content keeps its z values:
+  LINE and 3DFACE carry groups 30-33; 3D polylines, polygon meshes and polyface meshes are
+  written as DXF POLYLINE/VERTEX with the flags in [dxf.md](dxf.md#3d). Each edge of a solid,
+  surface or subdivision mesh is written as a polyface mesh of two-vertex faces, which marks
+  it as part of a body (see [acis.md](acis.md)); a body that yields no edges is written as a
+  bare `3DSOLID` record so the library can report it. Values never contain line
   breaks; MTEXT is split into 250-byte group 3 chunks on UTF-8 boundaries
   (`helpers/dwg/dxf_writer.cpp`).
 - Exit status: 0 drawing written; 2 usage; 3 not a DWG file or not decodable; 4 internal error;
@@ -83,4 +88,5 @@ cadpreview picks the largest image entry. Pre-R13 files (no image seeker) are no
 
 **Evidence:** `tests/unit/process_test.cpp`, `tests/api/dwg_helper_test.cpp` (with the stand-in
 `tests/support/fake_helper.cpp`), `tests/unit/dxf_writer_test.cpp`; on the 17 vendor samples
-the helper gives the same tier-4 results as the earlier in-process build (15 of 17).
+the helper gave the same tier-4 results as the earlier in-process build (15 of 17), and 17 of
+17 once 3D bodies were drawn (see [milestones.md](milestones.md#3d-previews)).

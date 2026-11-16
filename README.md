@@ -10,10 +10,10 @@ is tested on Linux.
 
 ## Supported formats
 
-| Format | Tier 1 (embedded preview) | Tier 4 (2D vector) |
+| Format | Tier 1 (embedded preview) | Tier 4 (vector line drawing) |
 |---|---|---|
-| DWG (R13 and later; checked on AC1021, AC1024) | yes | with the separate `cadpreview-dwg` helper (LibreDWG, GPL) |
-| DXF (ASCII) | yes (THUMBNAILIMAGE) | yes |
+| DWG (R13 and later; checked on AC1021, AC1024) | yes | with the separate `cadpreview-dwg` helper (LibreDWG, GPL); solids and surfaces as wireframes |
+| DXF (ASCII) | yes (THUMBNAILIMAGE) | yes; 3D meshes as wireframes, ACIS solids counted only |
 | DXF (binary) | detected, not read yet | detected, not read yet |
 
 The library, CLI and `CadPreview` NuGet package are Apache-2.0 and contain no GPL code. DWG
@@ -34,7 +34,7 @@ that yields an image:
 | 1 | Preview image embedded in the file |
 | 2 | Cached display mesh, rendered by a software rasterizer |
 | 3 | B-rep geometry from the modeling kernel stream, rebuilt and tessellated |
-| 4 | 2D vector entities (DWG/DXF only) |
+| 4 | Vector entities, with 3D bodies as an isometric wireframe (DWG/DXF only) |
 | 5 | Placeholder with the format name and a short reason |
 
 Formats are detected from file content, never from the extension. Unreadable, unsupported,

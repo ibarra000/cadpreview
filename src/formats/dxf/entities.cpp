@@ -4,8 +4,10 @@
 #include "render/vector/geometry.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <format>
 #include <numbers>
 #include <optional>
@@ -19,11 +21,23 @@ namespace cadpreview::dxf {
 namespace {
 
 constexpr double DEGREES = std::numbers::pi / 180.0;
-constexpr double MTEXT_LINE_SPACING = 5.0 / 3.0;   // AutoCAD's default spacing factor
-constexpr std::uint64_t CLOSED = 1U;               // group 70 bit on polylines and splines
-constexpr std::uint64_t POLYLINE_MESH = 16U | 64U; // 3D mesh or polyface: not drawn
-constexpr std::uint64_t SPLINE_FRAME_VERTEX = 16U;
-constexpr int PAPER_SPACE = 1; // group 67
+constexpr double MTEXT_LINE_SPACING = 5.0 / 3.0; // AutoCAD's default spacing factor
+constexpr std::uint64_t CLOSED = 1U;             // group 70 bit on polylines and splines
+constexpr std::uint64_t POLYLINE_3D = 8U;        // POLYLINE group 70 bits, see notes/dxf.md#3d
+constexpr std::uint64_t POLYGON_MESH = 16U;
+constexpr std::uint64_t MESH_CLOSED_N = 32U;
+constexpr std::uint64_t POLYFACE_MESH = 64U;
+constexpr std::uint64_t SPLINE_FRAME_VERTEX = 16U; // VERTEX group 70 bits
+constexpr std::uint64_t FACE_COORDINATES = 64U;
+constexpr std::uint64_t FACE_RECORD = 128U;
+constexpr long long MAX_MESH_SIDE = 32767; // M and N are 16-bit counts
+constexpr int PAPER_SPACE = 1;             // group 67
+
+// Entities whose geometry is a 3D body (ACIS data or a subdivision mesh) that tier 4 does not
+// read from DXF; they are counted so an empty result can say why.
+constexpr std::array<std::string_view, 10> BODY_TYPES{
+    "3DSOLID",       "REGION",      "BODY",         "PLANESURFACE",    "EXTRUDEDSURFACE",
+    "LOFTEDSURFACE", "NURBSURFACE", "SWEPTSURFACE", "REVOLVEDSURFACE", "MESH"};
 
 enum class Space : std::uint8_t { Model, Paper };
 
@@ -77,6 +91,23 @@ Point pointOf(const Record& record, int xCode) {
     return {record.number(xCode, 0), record.number(xCode + 10, 0)};
 }
 
+Point3 point3Of(const Record& record, int xCode) {
+    return {record.number(xCode, 0), record.number(xCode + 10, 0), record.number(xCode + 20, 0)};
+}
+
+bool isFlat(const std::vector<Point3>& points) {
+    return std::ranges::all_of(points, [](const Point3& p) { return p.z == 0; });
+}
+
+std::vector<Point> planOf(const std::vector<Point3>& points) {
+    std::vector<Point> plan;
+    plan.reserve(points.size());
+    for (const Point3& p : points) {
+        plan.push_back({p.x, p.y});
+    }
+    return plan;
+}
+
 // Every (x, y) pair that a record lists with the given x code, in order.
 std::vector<Point> allPoints(const Record& record, int xCode) {
     std::vector<Point> points;
@@ -115,6 +146,9 @@ std::vector<double> allNumbers(const Record& record, int code) {
     return numbers;
 }
 
+std::vector<std::pair<std::size_t, std::size_t>> faceEdges(const Record& faceRecord,
+                                                           std::size_t corners);
+
 class Converter {
 public:
     Converter(const Document& document, const ConvertLimits& limits)
@@ -134,6 +168,12 @@ private:
     void convert(const Record& record, const Transform& t, int depth);
     void polylineWithVertices(const std::vector<Record>& records, std::size_t& index,
                               const Transform& t);
+    void polyline2d(const Record& head, const std::vector<const Record*>& vertices,
+                    const Transform& t);
+    void polygonMesh(const Record& head, const std::vector<const Record*>& vertices,
+                     const Transform& t);
+    void polyfaceMesh(const std::vector<const Record*>& vertices, const Transform& t);
+    void lineOrWire(std::vector<Point3> points, bool closed, const Transform& t);
     void insert(const Record& record, const Transform& t, int depth);
     void drawBlock(std::string_view name, const Transform& t, int depth);
     void lwpolyline(const Record& record, const Transform& t);
@@ -145,6 +185,7 @@ private:
     void charge(std::size_t count);
     void addPolyline(std::vector<Point> points, bool closed, const Transform& t);
     void addArc(const Arc& arc, const Transform& t);
+    void addWire(std::vector<Point3> points, bool closed, const Transform& t, bool body = false);
     void addText(TextItem item, const Transform& t);
 
     const Document* document_; // never null; a pointer keeps the class assignable
@@ -177,6 +218,28 @@ void Converter::addPolyline(std::vector<Point> points, bool closed, const Transf
         p = t.apply(p);
     }
     drawing_.polylines.push_back({std::move(points), closed});
+}
+
+// Block transforms are 2D: they move x and y, and z is kept. see notes/dxf.md#3d
+void Converter::addWire(std::vector<Point3> points, bool closed, const Transform& t, bool body) {
+    charge(points.size());
+    if (points.size() < 2) {
+        return;
+    }
+    for (Point3& p : points) {
+        const Point moved = t.apply({p.x, p.y});
+        p = {moved.x, moved.y, p.z};
+    }
+    drawing_.wires.push_back({std::move(points), closed, body, drawing_.polylines.size()});
+}
+
+// Entities without depth stay 2D, so flat drawings render exactly as before.
+void Converter::lineOrWire(std::vector<Point3> points, bool closed, const Transform& t) {
+    if (isFlat(points)) {
+        addPolyline(planOf(points), closed, t);
+    } else {
+        addWire(std::move(points), closed, t);
+    }
 }
 
 void Converter::addArc(const Arc& arc, const Transform& t) {
@@ -225,7 +288,7 @@ void Converter::convertList(const std::vector<Record>& records, const Transform&
 void Converter::convert(const Record& r, const Transform& t, int depth) {
     const std::string_view type = r.type;
     if (type == "LINE") {
-        addPolyline({pointOf(r, 10), pointOf(r, 11)}, false, t);
+        lineOrWire({point3Of(r, 10), point3Of(r, 11)}, false, t);
     } else if (type == "CIRCLE") {
         addArc({pointOf(r, 10), r.number(40, 0), 0, 2 * std::numbers::pi}, t);
     } else if (type == "ARC") {
@@ -243,7 +306,7 @@ void Converter::convert(const Record& r, const Transform& t, int depth) {
     } else if (type == "SOLID" || type == "TRACE") {
         addPolyline({pointOf(r, 10), pointOf(r, 11), pointOf(r, 13), pointOf(r, 12)}, true, t);
     } else if (type == "3DFACE") {
-        addPolyline({pointOf(r, 10), pointOf(r, 11), pointOf(r, 12), pointOf(r, 13)}, true, t);
+        lineOrWire({point3Of(r, 10), point3Of(r, 11), point3Of(r, 12), point3Of(r, 13)}, true, t);
     } else if (type == "LEADER") {
         addPolyline(allPoints(r, 10), false, t);
     } else if (type == "TEXT" || type == "ATTRIB") {
@@ -254,30 +317,150 @@ void Converter::convert(const Record& r, const Transform& t, int depth) {
         insert(r, t, depth);
     } else if (type == "DIMENSION") {
         drawBlock(r.text(2).value_or(""), t, depth);
+    } else if (std::ranges::find(BODY_TYPES, type) != BODY_TYPES.end()) {
+        ++drawing_.undrawnBodies;
     }
 }
 
 void Converter::polylineWithVertices(const std::vector<Record>& records, std::size_t& index,
                                      const Transform& t) {
     const Record& head = records[index];
-    std::vector<Point> points;
-    std::vector<double> bulges;
+    std::vector<const Record*> vertices;
     while (index + 1 < records.size() && records[index + 1].type == "VERTEX") {
-        const Record& vertex = records[++index];
-        if (!hasBits(vertex.integer(70, 0), SPLINE_FRAME_VERTEX)) {
-            points.push_back(pointOf(vertex, 10));
-            bulges.push_back(vertex.number(42, 0));
-        }
+        vertices.push_back(&records[++index]);
     }
     if (index + 1 < records.size() && records[index + 1].type == "SEQEND") {
         ++index;
     }
-    const long long flags = head.integer(70, 0);
-    if (hasBits(flags, POLYLINE_MESH) || !visible(head) || points.empty()) {
+    charge(vertices.size()); // read on every block placement, even when nothing is drawn
+    if (!visible(head) || vertices.empty()) {
         return;
     }
-    const bool closed = hasBits(flags, CLOSED);
+    const long long flags = head.integer(70, 0);
+    if (hasBits(flags, POLYFACE_MESH)) {
+        polyfaceMesh(vertices, t);
+    } else if (hasBits(flags, POLYGON_MESH)) {
+        polygonMesh(head, vertices, t);
+    } else if (hasBits(flags, POLYLINE_3D)) {
+        std::vector<Point3> points;
+        for (const Record* vertex : vertices) {
+            if (!hasBits(vertex->integer(70, 0), SPLINE_FRAME_VERTEX)) {
+                points.push_back(point3Of(*vertex, 10));
+            }
+        }
+        addWire(std::move(points), hasBits(flags, CLOSED), t);
+    } else {
+        polyline2d(head, vertices, t);
+    }
+}
+
+void Converter::polyline2d(const Record& head, const std::vector<const Record*>& vertices,
+                           const Transform& t) {
+    std::vector<Point> points;
+    std::vector<double> bulges;
+    for (const Record* vertex : vertices) {
+        if (!hasBits(vertex->integer(70, 0), SPLINE_FRAME_VERTEX)) {
+            points.push_back(pointOf(*vertex, 10));
+            bulges.push_back(vertex->number(42, 0));
+        }
+    }
+    if (points.empty()) {
+        return;
+    }
+    const bool closed = hasBits(head.integer(70, 0), CLOSED);
     addPolyline(bulgePath(points, bulges, closed), closed, t);
+}
+
+// An M x N grid of vertices, listed row by row; rows and columns are drawn as wires. Bit 1
+// closes the M direction (columns), bit 32 the N direction (rows). see notes/dxf.md#3d
+void Converter::polygonMesh(const Record& head, const std::vector<const Record*>& vertices,
+                            const Transform& t) {
+    const long long m = head.integer(71, 0);
+    const long long n = head.integer(72, 0);
+    if (m < 1 || n < 1 || m > MAX_MESH_SIDE || n > MAX_MESH_SIDE ||
+        static_cast<std::size_t>(m * n) != vertices.size()) {
+        return;
+    }
+    const auto rows = static_cast<std::size_t>(m);
+    const auto columns = static_cast<std::size_t>(n);
+    const long long flags = head.integer(70, 0);
+    for (std::size_t row = 0; row < rows; ++row) {
+        std::vector<Point3> points;
+        points.reserve(columns);
+        for (std::size_t column = 0; column < columns; ++column) {
+            points.push_back(point3Of(*vertices[row * columns + column], 10));
+        }
+        addWire(std::move(points), hasBits(flags, MESH_CLOSED_N), t, true);
+    }
+    for (std::size_t column = 0; column < columns; ++column) {
+        std::vector<Point3> points;
+        points.reserve(rows);
+        for (std::size_t row = 0; row < rows; ++row) {
+            points.push_back(point3Of(*vertices[row * columns + column], 10));
+        }
+        addWire(std::move(points), hasBits(flags, CLOSED), t, true);
+    }
+}
+
+// Coordinate vertices (bit 64) come first; face records (bit 128 only) list up to four
+// 1-based vertex indices in groups 71-74, negative where the edge starting there is hidden.
+// Edges that continue where the previous one ended are joined into one wire, so a polyline
+// written as consecutive two-vertex faces (as the DWG helper writes solid edges) costs one wire.
+void Converter::polyfaceMesh(const std::vector<const Record*>& vertices, const Transform& t) {
+    std::vector<Point3> corners;
+    std::vector<Point3> chain;
+    std::size_t chainEnd = 0;
+    for (const Record* vertex : vertices) {
+        const long long flags = vertex->integer(70, 0);
+        if (hasBits(flags, FACE_COORDINATES)) {
+            charge(1);
+            corners.push_back(point3Of(*vertex, 10));
+            continue;
+        }
+        if (!hasBits(flags, FACE_RECORD)) {
+            continue;
+        }
+        for (const auto& [from, to] : faceEdges(*vertex, corners.size())) {
+            if (chain.empty() || from != chainEnd) {
+                addWire(std::exchange(chain, {}), false, t, true);
+                chain.push_back(corners[from]);
+            }
+            chain.push_back(corners[to]);
+            chainEnd = to;
+        }
+    }
+    addWire(std::move(chain), false, t, true);
+}
+
+// The visible edges of a polyface face record, as 0-based corner pairs; none when an index
+// is out of range.
+std::vector<std::pair<std::size_t, std::size_t>> faceEdges(const Record& faceRecord,
+                                                           std::size_t corners) {
+    const auto count = static_cast<long long>(corners);
+    std::array<long long, 4> indices{};
+    std::size_t used = 0;
+    for (int code = 71; code <= 74; ++code) {
+        const long long index = faceRecord.integer(code, 0);
+        if (index == 0) {
+            break;
+        }
+        if (index < -count || index > count) {
+            return {};
+        }
+        indices.at(used++) = index;
+    }
+    std::vector<std::pair<std::size_t, std::size_t>> edges;
+    // Two indices describe one edge; three or four describe a closed outline.
+    const std::size_t sides = used == 2 ? 1 : used;
+    for (std::size_t i = 0; used >= 2 && i < sides; ++i) {
+        const long long from = indices.at(i);
+        const long long to = std::llabs(indices.at((i + 1) % used));
+        if (from > 0) {
+            edges.emplace_back(static_cast<std::size_t>(from - 1),
+                               static_cast<std::size_t>(to - 1));
+        }
+    }
+    return edges;
 }
 
 void Converter::lwpolyline(const Record& r, const Transform& t) {

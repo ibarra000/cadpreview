@@ -14,7 +14,7 @@ else()
     message(FATAL_ERROR "the unofficial-libredwg package defines no known target")
 endif()
 
-add_executable(cadpreview_dwg_helper main.cpp translator.cpp dxf_writer.cpp)
+add_executable(cadpreview_dwg_helper main.cpp translator.cpp dxf_writer.cpp sab_reader.cpp)
 set_target_properties(cadpreview_dwg_helper PROPERTIES OUTPUT_NAME cadpreview-dwg)
 if(WIN32)
     # UTF-8 code page, so argv and LibreDWG's fopen take any path.

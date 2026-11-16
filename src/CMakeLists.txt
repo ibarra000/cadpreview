@@ -26,11 +26,13 @@ add_library(cadpreview_core STATIC
     render/vector/cairo_renderer.cpp
     render/vector/drawing.cpp
     render/vector/geometry.cpp
+    render/vector/projection.cpp
     tiers/dwg_tiers.cpp
     tiers/dxf_tiers.cpp
     tiers/ladder.cpp
     tiers/pipeline.cpp
-    tiers/placeholder.cpp)
+    tiers/placeholder.cpp
+    tiers/vector_tier.cpp)
 if(WIN32)
     target_sources(cadpreview_core PRIVATE platform/process_windows.cpp)
 else()

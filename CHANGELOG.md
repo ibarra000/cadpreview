@@ -24,6 +24,11 @@ All notable changes to this project are documented here. The format follows
 - `CP_FORMAT_DWG`, `CP_FORMAT_DXF`; `CadFormat.Dwg`, `CadFormat.Dxf`.
 - Fuzz harnesses for DXF, the DWG preview and image decoding, plus nightly fuzzing.
 - `corpus.py add` and local-only `vendor-sample` corpus entries.
+- 3D in tier 4: lines and faces with depth, 3D polylines, polygon and polyface meshes, and (in
+  DWG, through the helper) wireframes of solids, surfaces and subdivision meshes read from
+  their SAB data. Drawings with 3D bodies are shown in the south-east isometric view; 2D
+  drawings keep their exact top view. A drawing holding only bodies tier 4 cannot draw says
+  so in its reason. `fuzz_sab` fuzzes the SAB reader.
 
 ### Changed
 

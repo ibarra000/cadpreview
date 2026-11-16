@@ -5,8 +5,8 @@
 #include "render/compose.hpp"
 #include "render/decode/dib.hpp"
 #include "render/decode/png_decode.hpp"
-#include "render/vector/cairo_renderer.hpp"
 #include "tiers/builtin_tiers.hpp"
+#include "tiers/vector_tier.hpp"
 
 #include <algorithm>
 #include <array>
@@ -50,11 +50,7 @@ TierOutcome thumbnail(const TierContext& context) {
 TierOutcome vector(const TierContext& context) {
     const auto data = asciiDxf(context.source);
     const dxf::Document document = dxf::readDocument(data, dxf::Parts::Everything);
-    const Drawing drawing = dxf::toDrawing(document);
-    if (drawing.primitiveCount() == 0) {
-        return {std::nullopt, "no visible entities", {}};
-    }
-    return {renderDrawing(drawing, context.size), {}, {}};
+    return renderVectorTier(dxf::toDrawing(document), context.size);
 }
 
 } // namespace
